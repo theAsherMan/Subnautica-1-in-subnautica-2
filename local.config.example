@@ -1,0 +1,12 @@
+# Per-machine settings. Copy this file to "local.config" (same folder, git-ignored) and edit the values.
+# Format: KEY="value", one per line. Read by src/tools/*.sh (bash), src/modkit/Launch-Editor.cmd (cmd) and the Python helpers.
+# Use forward slashes. No trailing slash.
+
+# Steam install folder of Subnautica 2 (the one containing version.txt and the inner Subnautica2\ folder)
+SN2_GAME_DIR="C:/Program Files (x86)/Steam/steamapps/common/Subnautica2"
+
+# Scratch/output folder outside the repo: reports\, crashes\, save_backups\, install\ bundle
+SN2_WORKSPACE="C:/SN2Workspace"
+
+# Modkit root (needs ~60 GB): holds Subnautica2-Project\, UE_5.6_SN2\ (custom engine), downloads\, DDC\, Temp\
+SN2_MODKIT_DIR="D:/SN2Modkit"

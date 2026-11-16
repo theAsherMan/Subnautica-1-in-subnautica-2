@@ -1,0 +1,13 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "SN2 Graph Tools",
+	"Description": "Editor-only helpers that let Python build Blueprint graphs (add nodes, set pin defaults, connect pins, compile with messages).",
+	"Category": "Modding",
+	"EnabledByDefault": true,
+	"CanContainContent": false,
+	"Modules": [
+		{ "Name": "SN2GraphTools", "Type": "Editor", "LoadingPhase": "PostEngineInit" }
+	]
+}

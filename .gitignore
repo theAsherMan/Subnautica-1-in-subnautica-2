@@ -1,0 +1,9 @@
+# Large/derived local files (downloaded tools, game file listing)
+src/tools/bin/
+src/tools/downloads/
+src/tools/sn2_packaged_files.txt
+
+# Per-machine settings (copy local.config.example)
+local.config
+src/modkit/plugins/*/Binaries/
+src/modkit/plugins/*/Intermediate/

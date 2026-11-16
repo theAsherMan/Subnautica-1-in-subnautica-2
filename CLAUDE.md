@@ -1,0 +1,43 @@
+# Subnautica 1 → Subnautica 2 project
+
+Long-term goal: render the entire Subnautica 1 map inside Subnautica 2, as a UE4SS mod. `build_idea.md` holds the project owner's notes for later — background only;
+do not start work from it unless asked.
+
+## Before doing anything
+Read `research/00_overview.md` (state of play, paths, status legend, next steps), then `research/01_runbook.md` (edit → install → relaunch → test loop,
+UE4SS Lua rules, crash rules). Consult the other `research/` files as the task needs. Do not rediscover what they already record — re-verify only when
+something contradicts them or the game has been updated (check the build in `<GameDir>\version.txt` against CL-131439).
+
+## Machine paths come from `local.config`
+This repo is shared; never write a personal name or machine-specific path into tracked files. Paths are placeholders, resolved from the git-ignored
+`local.config` (template `local.config.example`): `<GameDir>` = `SN2_GAME_DIR`, `<Workspace>` = `SN2_WORKSPACE` (reports, crashes, save_backups, install
+bundle — outside git), `<ModkitDir>` = `SN2_MODKIT_DIR`, `<RepoDir>` = this repo. Read `local.config` to get the real values on the current machine.
+If it is missing, ask the user for the paths and create it.
+
+## Where the code lives
+- Lua mods: `src/mods/<Mod>/Scripts/main.lua` (SN2TerrainEdit, SN2WorldProbe). Shell/Python tools: `src/tools/` (all source `src/tools/sn2_env.sh` for paths).
+  `src/tools/bin`, `downloads`, `sn2_packaged_files.txt` are gitignored. Code map: `research/07_mods_reference.md`.
+- Install: `bash src/tools/install_mod.sh <Mod>`. UE4SS reads Lua only at game launch — a full quit + relaunch is required
+  (`src/tools/relaunch_on_exit.sh` in the background, then ask the tester to quit). Save backup: `bash src/tools/backup_saves.sh`.
+- Watch results with the Monitor tool on `bash src/tools/watch_log.sh`; re-arm it after expiry and after any session restart.
+- Modkit (Unreal editor) work: `src/modkit/` — editor Python scripts in `scripts/`, runner `tools/ue_run.py` (runs them inside the open editor),
+  `tools/cook_install.sh <Mod> <ChunkId>`, `Launch-Editor.cmd`, editor add-on source `plugins/SN2GraphTools` (copied into the modkit project). See `research/08_modkit_setup.md`.
+
+## Working with the tester
+- The tester (the person at the PC) plays and presses the in-game keys; you cannot. Give the exact key, where to be, and what should happen. Ask what is visible — the log only proves calls ran.
+- Game console commands are disabled in the test save — build test actions (teleport, spawn) into the Lua mods.
+- Keep tests non-destructive: in-memory changes only; run `bash src/tools/backup_saves.sh` (copies `%LOCALAPPDATA%\Subnautica2\Saved\SaveGames\` to
+  `<Workspace>\save_backups\<timestamp>\`) before anything that could reach a save.
+- The finished mod must not keep hidden Subnautica 2 terrain in RAM — prefer destroy / never-load over hide.
+
+## Keep the research log current (required)
+The `research/` folder is the project's memory between sessions. Update it **as you go, in the same turn as the finding**, not at the end:
+- New fact, recipe, class/property name, path, signature or gotcha → add it to the matching file (`02` world systems, `03` terrain, `04` features,
+  `05` console, `06` assets, `07` mod code, `01` process/tooling). Create a new numbered file only for a genuinely new area (e.g. SN1 file formats),
+  and list it in the `00_overview.md` file table.
+- Every claim carries a status: **VERIFIED (date)** = seen in game, **LOGGED (date)** = log says it ran but effect unconfirmed, **UNTESTED**, **FAILED (date)** with the reason.
+  Only upgrade a status with new evidence; never mark something VERIFIED on log output alone.
+- Failures and dead ends are worth recording (what was tried, the exact error text, why it failed) so they are not retried blindly.
+- When a test changes what works, update the "State of play" table and "Next steps" in `00_overview.md`.
+- Write for the implementer: exact paths, class/function names, signatures, code snippets, numbers. No narrative for the tester.
+- Raw dumps go to `<Workspace>\reports\`; crash dumps to `<Workspace>\crashes\` (record cause + rule in `01_runbook.md`).
