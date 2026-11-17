@@ -1,4 +1,4 @@
-"""Generate a test heightfield for SN2TerrainEdit's generated-seafloor test.
+"""Generate a test heightfield (pass the output path, e.g. src/modkit/data/seafloor_test.txt; originally made for the removed Lua mod SN2TerrainEdit).
 
 Stand-in for one converted Subnautica 1 terrain chunk: 160 m x 160 m (one SN1 batch),
 101 x 101 vertices (1.6 m spacing, 20,000 triangles), heights in centimetres relative to the patch origin.

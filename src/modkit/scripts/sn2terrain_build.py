@@ -1,6 +1,6 @@
 """Runs INSIDE the Unreal editor (Python). Builds the SN2Terrain test mod:
   1. creates /Game/Mods/SN2Terrain/{ModActor, PAL_SN2Terrain} if missing (same as SN2 Mod Tools "New mod...")
-  2. builds a static mesh from the Lua test heightfield (same data as SN2TerrainEdit/data/seafloor_test.txt)
+  2. builds a static mesh from the Lua test heightfield (src/modkit/data/seafloor_test.txt; the data the old Lua test used)
      via Geometry Script AppendBuffersToMesh (arbitrary triangle buffers) -> Nanite + complex-as-simple collision
   3. assigns the game's rock material (from SM_CG_RockRubble_BoulderMed_6a, as the Lua test did)
   4. adds/updates a StaticMeshComponent "Seafloor" on ModActor at the Lua test position
@@ -21,7 +21,7 @@ try:
     REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 except NameError:
     REPO = os.environ["SN2_REPO"]
-HEIGHTFIELD = os.path.join(REPO, "src", "mods", "SN2TerrainEdit", "data", "seafloor_test.txt")
+HEIGHTFIELD = os.path.join(REPO, "src", "modkit", "data", "seafloor_test.txt")
 TARGET = unreal.Vector(-331747.0, 420670.0, -6224.0)   # Lua test position (old landscape mean height)
 ROCK_MESH = "/Game/Art/Environment/Biome/CoralGarden/Rocks/SM_CG_RockRubble_BoulderMed_6a.SM_CG_RockRubble_BoulderMed_6a"
 UV_METRES = 4.0

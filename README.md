@@ -82,9 +82,9 @@ If the system drive is small, put `<ModkitDir>` on another drive; section 7 keep
 2. Unzip UE4SS into `<game>\Subnautica2\Binaries\Win64\`. Launch the game once; `Binaries\Win64\ue4ss\UE4SS.log` should appear.
 3. Install a mod from this repo by running this in Git Bash:
    ```bash
-   bash src/tools/install_mod.sh SN2TerrainEdit
+   bash src/tools/install_mod.sh SN2IntroSkip
    ```
-   This copies `src/mods/SN2TerrainEdit` into the game's `ue4ss\Mods\` folder (found via `SN2_GAME_DIR`) and enables it.
+   This copies `src/mods/SN2IntroSkip` into the game's `ue4ss\Mods\` folder (found via `SN2_GAME_DIR`) and enables it.
 4. **Fully quit and restart the game** after every mod change. UE4SS only reads Lua files at launch.
 5. Before testing anything risky, back up your saves: `bash src/tools/backup_saves.sh` (copies `%LOCALAPPDATA%\Subnautica2\Saved\SaveGames\`
    to `<Workspace>\save_backups\<timestamp>\`).

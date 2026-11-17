@@ -38,7 +38,8 @@ Never upgrade a claim's status without new evidence. (A claim was once marked VE
 | `04_placing_features.md` | Spawns, heat zones, water look, music, lights, resources (mostly UNTESTED recipes) |
 | `05_console_commands.md` | Dev console commands — **disabled in the test save**, keep for reference |
 | `06_asset_index.md` | Where content lives (`/Game/...` paths for meshes, BPs, data assets, banks, configs) |
-| `07_mods_reference.md` | Code map of SN2TerrainEdit / SN2WorldProbe: sections, keys, config tables, how to extend |
+| `07_mods_reference.md` | Code map of the Lua mods (SN2WorldProbe; SN2TerrainEdit — deleted 2026-11-16, kept as history): sections, keys, config tables, how to extend |
+| `09_intro_and_world_replacement.md` | Skipping the intro, starting in the lifepod, not loading the SN2 world at all (current phase) |
 | `08_modkit_setup.md` | Modkit (cooked editor) install on `<ModkitDir>`: layout, step status, prerequisites |
 
 ## State of play (2026-11-15)
@@ -55,15 +56,18 @@ Never upgrade a claim's status without new evidence. (A claim was once marked VE
 | One-call arbitrary mesh (`AppendBuffersToMesh`) for non-grid meshes (caves, overhangs) | FAILED from Lua (out-param error); **works from editor Python** 2026-11-16 → saved Nanite static mesh asset, see `03` |
 | Modkit editor installed, game content mounted, scripted from the shell (`ue_run.py`) | VERIFIED 2026-11-16, see `08` |
 | Cooked terrain mod (`SN2Terrain`: ModActor + SM_SeafloorTest, built by editor Python, packaged as pak chunk 1 in `LogicMods`) appearing in game | **VERIFIED 2026-11-16** — visible at the Lua test spot + collision (the tester); region still cleared by Lua |
-| Terrain deletion done by the cooked mod instead of Lua | NOT STARTED (next) |
+| Terrain deletion done by the cooked mod instead of Lua (ModActor graph built by `src/modkit/scripts/sn2terrain_removal_graph.py`) | **VERIFIED 2026-11-16** — tester: "its all there" (ground + dressing gone, custom seafloor present); log: proxies 22 → 4 within 4 s of load with the Lua sweep disabled; ModActor self-destroys in the lobby. Lua counter logger hit `A function requiring userdata as param #1 was called without userdata` once and logged nothing (cause not found yet) |
 | Never loading SN2 terrain at all (RAM requirement) | UNTESTED — design notes in `03` |
 | Temperature / water-look / music / spawn-zone actors spawned from Lua | UNTESTED (properties known) |
 | Asset (pak/IoStore) mods, modkit | UNTESTED |
+| New game skips the intro: character selection kept → start-set wake-up → lifepod at the surface, breathing adaptation, controls, HUD, no FMV (`src/mods/SN2IntroSkip` v4) | **VERIFIED 2026-11-17** (tester: "worked perfectly") — see `09` |
+| Never loading the SN2 world (only our crater) | NOT STARTED — options in `09` |
 | Reading Subnautica 1 terrain files | NOT STARTED |
 
 ## Next steps (agreed direction, in order)
-0. (2026-11-16) Move region clearing from Lua into the SN2Terrain ModActor graph (timer sweep → destroy LandscapeStreamingProxy/dressing in radius → CollectGarbage),
-   gate it to L_Main; then retire the Lua clearing. Graph authoring: Python can't place K2 nodes — options are hand-building from instructions or pasting T3D node text.
+0. ~~Move region clearing from Lua into the ModActor graph~~ — done and verified 2026-11-16 (SN2GraphTools editor add-on builds the graph from Python); Lua terrain mod deleted.
+0b. **Current phase (started 2026-11-16): replace the SN2 world.** Intro skip = DONE (`09`). Remaining: lifepod position vs our crater, then stop `L_Main` terrain loading
+   entirely (options in `09`), so only the crater exists.
 1. ~~Fix the arbitrary-mesh path~~ — solved via editor Python (`03`); Lua path still FAILED but no longer needed for production.
 2. Extend the clearing allow-list: `/Game/Blueprints/Environment/**`, `/Game/Prototyping/Resources/CoralPads/**`, `/Game/Blueprints/Resources/BP_AcidAnemone`, `DecalActor`, `PointLight` in region.
 3. Subnautica 1 terrain extraction: locate/parse SN1 batch files, convert one 160 m batch to a mesh file, load it with the existing loader.

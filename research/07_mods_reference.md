@@ -1,5 +1,9 @@
 # Mods: code map and how to extend
 
+**SN2TerrainEdit was deleted on 2026-11-16** (terrain removal + custom terrain now come from the cooked modkit mod `SN2Terrain`, see `08`).
+Its sections below are kept as a record of working Lua recipes; the code is in git: `git show e30f3d0:src/mods/SN2TerrainEdit/Scripts/main.lua`
+(test heightfield moved to `src/modkit/data/seafloor_test.txt`). Current Lua mods: SN2WorldProbe, SN2IntroProbe, SN2IntroSkip (see `09`).
+
 Source of truth: `src/mods/<Mod>/Scripts/main.lua` in this project (tools in `src/tools`, paths from `local.config`). Install with `src/tools/install_mod.sh <Mod>`. Both load in `L_ClientLobby` too — gate world work with `worldName():find("L_Main")`.
 
 ## Key map (avoid collisions when adding keys)

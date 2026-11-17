@@ -1,5 +1,5 @@
 """Runs INSIDE the Unreal editor. Builds the SN2Terrain ModActor event graph that clears SN2 terrain in a circular region
-(port of SN2TerrainEdit's Lua region sweep), using the SN2GraphTools editor plugin (unreal.SN2GraphLibrary).
+(port of the former Lua mod SN2TerrainEdit's region sweep), using the SN2GraphTools editor plugin (unreal.SN2GraphLibrary).
 
 Behaviour of the generated graph:
   BeginPlay: if current level == L_Main -> bActive=true, looping timer (SweepInterval s) -> Sweep;  else -> destroy this actor (no mesh in the lobby).

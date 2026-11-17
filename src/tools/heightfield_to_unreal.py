@@ -1,4 +1,4 @@
-"""Convert a SN2TerrainEdit heightfield text file into Unreal-importable files.
+"""Convert a heightfield text file (format: src/modkit/data/seafloor_test.txt) into Unreal-importable files.
 
 Input  : heightfield text (line 1: "<n> <spacing_cm>", then n*n heights in cm, row-major, Y outer) — same file the Lua mod loads.
 Outputs (next to --out prefix):

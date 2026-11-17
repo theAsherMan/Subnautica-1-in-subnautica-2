@@ -58,6 +58,8 @@ local function isValid(obj)
 end
 
 local function nameOf(obj)
+    -- UE4SS hands back a null UObject wrapper for empty results; calling a method on it crashes UE4SS.dll (+0x2428xx) -> check first
+    if not isValid(obj) then return "none" end
     local ok, n = pcall(function() return obj:GetFName():ToString() end)
     return ok and n or "?"
 end
