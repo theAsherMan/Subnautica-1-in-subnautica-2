@@ -24,7 +24,15 @@ Source of truth: `src/mods/<Mod>/Scripts/main.lua` in this project (tools in `sr
 | INS | UE4SS BPModLoaderMod | (default) |
 Reports are written next to the mod in the game folder; copy to `<Workspace>\reports\` to keep them.
 
-## SN2TerrainEdit (≈860 lines) — sections in file order
+## SN2IntroSkip (≈250 lines, v4, VERIFIED 2026-11-17) and SN2IntroProbe (≈200 lines, recorder, disabled)
+Keys (Ctrl + top-row number, `bind(key,label,fn)`): Ctrl+1 dump state, Ctrl+4 `unstick`. Design and results: `09`.
+SN2IntroSkip sections: constants (`LIFEPOD_END`, `DONE_GOAL`, `DEEPSTART_GOALS` ×18) → guarded helpers (`isValid/nameOf/fullOf/notCDO/firstOf/cdoOf/getPC`, `step/try`)
+→ `unlockGoals` (subsystem → statics fallbacks) → `unstick` → `skipStoryState` (phase A) → `skipMove` (phase B) → `parentClass`, `dump` → keybinds
+→ `ClientRestart` hook (arms only in `L_Main`) → `LoopAsync(500)` state machine (waits for non-spectator pawn ≥3 ticks, bed-attached, then `waitingGetUp`, 45 s timeout).
+SN2IntroProbe: story-goal / data-layer / pawn polling + hooks (sequence, media, lifepod manager); polls only in `L_Main` every 5 s. Enable only for new recordings.
+SN2WorldProbe keys are in the table below (F5–F12). Table rows for SN2TerrainEdit refer to the deleted mod.
+
+## SN2TerrainEdit (DELETED; ≈860 lines) — sections in file order
 1. **config**: `PLACEMENTS` (`{name, mesh, loc={X,Y,Z}, yaw, scale}`; current: `first_rock` boulder at (-200350, 433900, -26450)), `WORLD_MATCH="L_Main"`, `DELAY_MS=4000`.
 2. **helpers**: `isValid`, `getPC`, `getWorld`, `worldName`, `FALLBACK_MESHES`, `tryLoad`/`loadMesh` (StaticFindObject → LoadAsset → fallbacks → any loaded rock), `quatFromYaw`.
 3. **placement**: `placeOne`, `placeAll` (auto via ClientRestart hook + `ExecuteWithDelay(DELAY_MS)` → `ExecuteInGameThread`).

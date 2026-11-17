@@ -42,7 +42,7 @@ Never upgrade a claim's status without new evidence. (A claim was once marked VE
 | `09_intro_and_world_replacement.md` | Skipping the intro, starting in the lifepod, not loading the SN2 world at all (current phase) |
 | `08_modkit_setup.md` | Modkit (cooked editor) install on `<ModkitDir>`: layout, step status, prerequisites |
 
-## State of play (2026-11-15)
+## State of play (updated 2026-11-17)
 | Capability | Status |
 |---|---|
 | UE4SS 3.0.1-953 injected, Lua mods load, game stable | VERIFIED |
@@ -61,7 +61,8 @@ Never upgrade a claim's status without new evidence. (A claim was once marked VE
 | Temperature / water-look / music / spawn-zone actors spawned from Lua | UNTESTED (properties known) |
 | Asset (pak/IoStore) mods, modkit | UNTESTED |
 | New game skips the intro: character selection kept → start-set wake-up → lifepod at the surface, breathing adaptation, controls, HUD, no FMV (`src/mods/SN2IntroSkip` v4) | **VERIFIED 2026-11-17** (tester: "worked perfectly") — see `09` |
-| Never loading the SN2 world (only our crater) | NOT STARTED — options in `09` |
+| Never loading the SN2 world (only our crater) | NOT STARTED — options in `09`. `SN2Terrain` currently parked in `<Workspace>\disabled_mods` (not installed) |
+| Lobby→`L_Main` load crash (GC watchdog, 22.8k objects) | Mitigated 2026-11-17 (no lobby polling); 1 successful load since — not proven, see runbook |
 | Reading Subnautica 1 terrain files | NOT STARTED |
 
 ## Next steps (agreed direction, in order)

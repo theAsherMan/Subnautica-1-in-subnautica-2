@@ -63,7 +63,7 @@ Goal: a new game starts the player directly in the lifepod (no intro), and the S
   `UUWEStoryGoal : UUWEPrimaryDataAssetBase` — `StoryGoalType`, `StoryGoalUnlocks`, `UnlockingRequirements`, `UnlockOnRequirementsMet`, dialogue/notification/tag events.
 - `SN2CheatManager:UnlockStoryGoal(Str TagName)` / `StoryGoalDebugger` exist (console disabled in normal saves).
 
-## Recorder mod: `src/mods/SN2IntroProbe` (UNTESTED until the first new-game run)
+## Recorder mod: `src/mods/SN2IntroProbe` (VERIFIED 2026-11-16: produced the timeline above; disabled since 2026-11-17)
 Polls every 1 s: story goals (all loaded `UWEStoryGoal`, `IsStoryGoalUnlocked` diff), `DataLayerInstance` runtime states, pawn/view target/attach parent/location.
 Hooks: `MovieSceneSequencePlayer:Play`, `MediaPlayer:OpenSource`, `SN2LifepodManager:{HideHud,ShowHUD,LogLifepod}`, `PlayerController:ClientRestart`.
 For the recording run the terrain mods were disabled: `LogicMods\SN2Terrain` moved to `<Workspace>\disabled_mods\`, `SN2TerrainEdit : 0` in `ue4ss\Mods\mods.txt`
@@ -73,7 +73,7 @@ For the recording run the terrain mods were disabled: `LogicMods\SN2Terrain` mov
 New game: short text → character selection → spawn on the biobed. In the log this is the `UWESpectatorPawn` phase in L_Main (~34 s) before the
 ClientRestart that possesses `BP_Character_01_C`. So "spawned as BP_Character_01_C attached to BP_BioBed" is after selection — safe trigger point.
 
-## Skip mod v1: `src/mods/SN2IntroSkip` (UNTESTED, 2026-11-16)
+## Skip mod v1: `src/mods/SN2IntroSkip` (FAILED 2026-11-16, superseded by v4 below; history kept)
 Trigger: ClientRestart in L_Main → pawn is not `UWESpectatorPawn` for ≥3 checks (1.5 s) → attached to `*BioBed*` and
 `DA_Storygoal_Player_Ch2_EnteredLifepod_StoryGoal` not unlocked. Steps: `UWEBioBedStatics:UnassignPawnFromBioBed` + `K2_DetachFromActor(1,1,1)`;
 `K2_SetActorLocation(-336997, 433246, 322)`; unlock the recorded goal list via `UWEStoryGoalsWorldSubsystem:UnlockStoryGoal(goal, pawn, true)`
@@ -135,7 +135,7 @@ Hot reload was enabled for this, then the game crashed in UE4SS.dll ~1 s after t
 - Tester: **breathing adaptation works** (→ granted by `RemoveDeepStartTags`, which removes the missing-breathing tag; no adaptation call needed),
   **no ride FMV / door sequence**, player was frozen only until the "open PDA" tutorial step was done, then free.
 
-### Skip v3 (automatic, 2026-11-16, UNTESTED)
+### Skip v3 (automatic, 2026-11-16) — FAILED (see v4 "why v3 failed")
 1.5 s after a fresh-intro spawn: `ApplyCreativeModeStart(pawn)` → deep-start goals (subsystem → `UnlockPlayerStoryGoal` → `UnlockWorldStoryGoal`
 fallbacks, logs which worked) → move into lifepod → `RemoveDeepStartTags(pawn)` → `SetLifepodRideCompleted(pawn)` → unassign/detach → reset input →
 view target → `ShowAllPlayers`/`ShowHUD`. Dropped: lifepod/ride goals, adaptation calls, SetMovementMode. Keys: Ctrl+1 dump, Ctrl+4 unstick.
@@ -156,6 +156,12 @@ Final design (`src/mods/SN2IntroSkip/Scripts/main.lua`):
 - **Crash rules found on the way:** (1) never call methods on empty-result objects (`pawn:GetAttachParentActor():GetClass()` when not attached → UE4SS.dll AV;
   helpers `nameOf/fullOf` now check `isValid` first); (2) never read `GetAdaptations()` etc. (complex structs); (3) no periodic `FindAllOf` in the lobby.
 - SN2IntroProbe (recorder) is disabled (`SN2IntroProbe : 0`, `enabled.txt` removed); enable it again only for new recordings, and re-check (3) first.
+
+## Current state of the world replacement (2026-11-17)
+- `LogicMods\SN2Terrain` is **not installed** (parked in `<Workspace>\disabled_mods\SN2Terrain` for the recordings); reinstall by moving it back to `<GameDir>\Subnautica2\Content\Paks\LogicMods\`.
+- Lifepod end position (-336997, 433246, 322) is ~136 m from the crater centre (-331747, 420670) used by SN2Terrain → crater must be moved/rebuilt around the lifepod.
+- ModActor is also spawned in the lobby (self-destroys there); gate it to `L_Main` when integrating.
+- Nothing of the "never load SN2 world" step has been run yet. Planned first experiment: option 1 (UNTESTED), compare RAM/object counts before vs after.
 
 ## World replacement — options (to evaluate after the recording)
 1. **Keep L_Main, stop World Partition streaming of terrain cells** (e.g. CVar `wp.Runtime.OverrideRuntimeSpatialHashLoadingRange` / disabling streaming
