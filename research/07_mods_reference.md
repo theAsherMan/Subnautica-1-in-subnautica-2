@@ -2,7 +2,7 @@
 
 **SN2TerrainEdit was deleted on 2026-11-16** (terrain removal + custom terrain now come from the cooked modkit mod `SN2Terrain`, see `08`).
 Its sections below are kept as a record of working Lua recipes; the code is in git: `git show e30f3d0:src/mods/SN2TerrainEdit/Scripts/main.lua`
-(test heightfield moved to `src/modkit/data/seafloor_test.txt`). Current Lua mods: SN2WorldProbe, SN2IntroProbe, SN2IntroSkip (see `09`).
+(test heightfield moved to `src/modkit/data/seafloor_test.txt`). Current Lua mods: SN2WorldProbe, SN2IntroProbe (see `09`).
 
 Source of truth: `src/mods/<Mod>/Scripts/main.lua` in this project (tools in `src/tools`, paths from `local.config`). Install with `src/tools/install_mod.sh <Mod>`. Both load in `L_ClientLobby` too — gate world work with `worldName():find("L_Main")`.
 
@@ -24,7 +24,7 @@ Source of truth: `src/mods/<Mod>/Scripts/main.lua` in this project (tools in `sr
 | INS | UE4SS BPModLoaderMod | (default) |
 Reports are written next to the mod in the game folder; copy to `<Workspace>\reports\` to keep them.
 
-## SN2IntroSkip (≈250 lines, v4, VERIFIED 2026-11-17) and SN2IntroProbe (≈200 lines, recorder, disabled)
+## SN2IntroSkip (DELETED 2026-11-18, replaced by the launch argument `-OverridePlayerStart=Shallows`, see `09`; v4 code: `git show f2b4354:src/mods/SN2IntroSkip/Scripts/main.lua`) and SN2IntroProbe (≈200 lines, recorder, disabled)
 Keys (Ctrl + top-row number, `bind(key,label,fn)`): Ctrl+1 dump state, Ctrl+4 `unstick`. Design and results: `09`.
 SN2IntroSkip sections: constants (`LIFEPOD_END`, `DONE_GOAL`, `DEEPSTART_GOALS` ×18) → guarded helpers (`isValid/nameOf/fullOf/notCDO/firstOf/cdoOf/getPC`, `step/try`)
 → `unlockGoals` (subsystem → statics fallbacks) → `unstick` → `skipStoryState` (phase A) → `skipMove` (phase B) → `parentClass`, `dump` → keybinds

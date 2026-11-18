@@ -10,5 +10,5 @@ while [ $gone -lt 3 ]; do
 done
 echo "game exited at $(date +%H:%M:%S); relaunching"
 sleep 4
-powershell -NoProfile -c "Start-Process 'steam://rungameid/1962700'"
+bash "$(dirname "$0")/launch_game.sh"
 echo "relaunch sent $(date +%H:%M:%S)"

@@ -60,9 +60,9 @@ Never upgrade a claim's status without new evidence. (A claim was once marked VE
 | Never loading SN2 terrain at all (RAM requirement) | UNTESTED — design notes in `03` |
 | Temperature / water-look / music / spawn-zone actors spawned from Lua | UNTESTED (properties known) |
 | Asset (pak/IoStore) mods, modkit | UNTESTED |
-| New game skips the intro: character selection kept → start-set wake-up → lifepod at the surface, breathing adaptation, controls, HUD, no FMV (`src/mods/SN2IntroSkip` v4) | **VERIFIED 2026-11-17** (tester: "worked perfectly") — see `09` |
+| New **Survival** game skips the intro, empty hotbar, only the breathing adaptation, via launch argument `-OverridePlayerStart=Shallows` (`bash src/tools/launch_game.sh`; no mod) | **VERIFIED 2026-11-18** (tester: "worked perfectly. Intro skipped. hotbar empty. only pressure tolerance adaptation") — see `09`. The Lua mod SN2IntroSkip (v1–v5) was deleted |
 | Never loading the SN2 world (only our crater) | NOT STARTED — options in `09`. `SN2Terrain` currently parked in `<Workspace>\disabled_mods` (not installed) |
-| Lobby→`L_Main` load crash (GC watchdog, 22.8k objects) | Mitigated 2026-11-17 (no lobby polling); 1 successful load since — not proven, see runbook |
+| Lobby→`L_Main` load crash (GC watchdog, 22.8k objects) | NOT fixed: crashed again 2026-11-18 with all our Lua mods disabled, so our polling is not the cause; A/B without UE4SS pending, see runbook |
 | Reading Subnautica 1 terrain files | NOT STARTED |
 
 ## Next steps (agreed direction, in order)

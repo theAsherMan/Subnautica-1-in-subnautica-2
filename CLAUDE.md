@@ -15,8 +15,9 @@ bundle — outside git), `<ModkitDir>` = `SN2_MODKIT_DIR`, `<RepoDir>` = this re
 If it is missing, ask the user for the paths and create it.
 
 ## Where the code lives
-- Lua mods: `src/mods/<Mod>/Scripts/main.lua` (SN2WorldProbe, SN2IntroProbe, SN2IntroSkip). Terrain is done by the modkit mod `SN2Terrain` (`src/modkit`); the old Lua terrain mod SN2TerrainEdit was deleted 2026-11-16 (recover with `git show e30f3d0:src/mods/SN2TerrainEdit/Scripts/main.lua`). Shell/Python tools: `src/tools/` (all source `src/tools/sn2_env.sh` for paths).
+- Lua mods: `src/mods/<Mod>/Scripts/main.lua` (SN2WorldProbe, SN2IntroProbe). Terrain is done by the modkit mod `SN2Terrain` (`src/modkit`); the old Lua terrain mod SN2TerrainEdit was deleted 2026-11-16 (recover with `git show e30f3d0:src/mods/SN2TerrainEdit/Scripts/main.lua`). Shell/Python tools: `src/tools/` (all source `src/tools/sn2_env.sh` for paths).
   `src/tools/bin`, `downloads`, `sn2_packaged_files.txt` are gitignored. Code map: `research/07_mods_reference.md`.
+- Launch: `bash src/tools/launch_game.sh` (adds `-OverridePlayerStart=Shallows` = intro skipped, empty hotbar; no mod involved).
 - Install: `bash src/tools/install_mod.sh <Mod>`. UE4SS reads Lua only at game launch — a full quit + relaunch is required
   (`src/tools/relaunch_on_exit.sh` in the background, then ask the tester to quit). Save backup: `bash src/tools/backup_saves.sh`.
 - Watch results with the Monitor tool on `bash src/tools/watch_log.sh`; re-arm it after expiry and after any session restart.
