@@ -1,0 +1,136 @@
+{
+ "_comment": "Screen coordinates (1920x1080) found by hand-exploration 2026-11-18, build 0.1.2.3-131439. Each step has expect = the screen that must be stably IDENTIFIED (plans/screens.json fingerprints, driver 'identify') before the action; after the action the driver polls up to poll seconds (default 10) until the screen is something else and acts again only if it is unchanged (max 3 attempts, 'actions' = alternative actions per attempt); a later step's screen showing = skip ahead. settle = seconds to wait instead of a screen change (the action does not change the identity); post_log = regex that must appear in the UE4SS log after the action; done_log = same, success condition of the last navigation step; post=exit = the game process must exit; expect 'ingame' = no known menu screen. A screenshot menu_<nn>_<screen>.png is saved after each step.",
+ "calibration": {
+  "yaw_counts_per_deg": 4.571,
+  "pitch_counts_per_deg": 4.572,
+  "pitch_sign": 1
+ },
+ "new_game": [
+  {
+   "screen": "notice_photosensitivity_continue",
+   "expect": "notice",
+   "x": 960,
+   "y": 930,
+   "engine": {"label": "name:ContinueBtn@WBP_StartScreen_HealthWarning", "method": "fn:HandleButtonClicked", "settle": 4}, "skippable": true
+  },
+  {
+   "screen": "title_continue",
+   "expect": "title",
+   "x": 960,
+   "y": 930,
+   "engine": {"label": "name:ContinueBtn@WBP_StartScreen_PressStart", "method": "fn:HandleButtonClicked", "settle": 4}, "skippable": true
+  },
+  {
+   "screen": "main_play_single_player",
+   "expect": "main_menu",
+   "x": 775,
+   "y": 461,
+   "engine": {"label": "name:PlaySinglePlayerButton@WBP_MainLobbyScreen", "method": "fn:HandleButtonClicked", "settle": 4}
+  },
+  {
+   "screen": "saves_new_single_player_game",
+   "expect": "save_list",
+   "x": 1198,
+   "y": 407,
+   "engine": {"label": "name:WBP_NewGameButton@WBP_LoadGamePanel", "method": "fn:HandleButtonClicked", "settle": 4}
+  },
+  {
+   "screen": "create_new_game_survival_play",
+   "expect": "create_game",
+   "x": 947,
+   "y": 815,
+   "engine": {"label": "name:StartButton@WBP_CreateGameScreen", "method": "fn:HandleButtonClicked"},
+   "poll": 300,
+   "done_log": "WORLD (?!L_ClientLobby)\\w+|PAWN possessed"
+  }
+ ],
+ "load_game": [
+  {
+   "screen": "notice_photosensitivity_continue",
+   "expect": "notice",
+   "x": 960,
+   "y": 930
+  },
+  {
+   "screen": "title_continue",
+   "expect": "title",
+   "x": 960,
+   "y": 930
+  },
+  {
+   "screen": "main_play_single_player",
+   "expect": "main_menu",
+   "x": 775,
+   "y": 461
+  },
+  {
+   "screen": "saves_select_savegame_1",
+   "expect": "save_list",
+   "x": 1190,
+   "y": 545
+  },
+  {
+   "screen": "slot_menu_load_game",
+   "expect": "slot_menu",
+   "x": 1558,
+   "y": 483
+  },
+  {
+   "screen": "load_pick_default_save",
+   "expect": "slot_pane",
+   "x": 950,
+   "y": 457,
+   "settle": 1.0
+  },
+  {
+   "screen": "load_confirm",
+   "expect": "slot_pane",
+   "actions": [
+    {
+     "key": "enter"
+    },
+    {
+     "x": 960,
+     "y": 687
+    },
+    {
+     "key": "enter"
+    }
+   ],
+   "done_log": "WORLD (?!L_ClientLobby)\\w+|PAWN possessed"
+  }
+ ],
+ "quit_game": [
+  {
+   "screen": "escape_menu_open",
+   "expect": "ingame",
+   "key": "esc",
+   "engine": {"label": "name:HandlePause", "method": "fn:HandleButtonClicked", "settle": 3}
+  },
+  {
+   "screen": "pause_exit_game",
+   "expect": "pause_menu",
+   "x": 960,
+   "y": 741,
+   "engine": {"label": "name:WBP_RoundedButton_ExitGame", "method": "fn:HandleButtonClicked", "settle": 3}
+  },
+  {
+   "screen": "exit_without_saving",
+   "expect": "exit_confirm",
+   "x": 960,
+   "y": 569,
+   "engine": {"label": "name:ExitWithoutSavingButton", "method": "fn:HandleButtonClicked"},
+   "post_log": "\\[SN2AutoTest\\] WORLD L_ClientLobby",
+   "poll": 240
+  },
+  {
+   "screen": "main_quit",
+   "expect": "main_menu",
+   "x": 1284,
+   "y": 980,
+   "engine": {"label": "name:QuitButton@WBP_MainLobbyScreen", "method": "fn:HandleButtonClicked"},
+   "post": "exit",
+   "poll": 25
+  }
+ ]
+}

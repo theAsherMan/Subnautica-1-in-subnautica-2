@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Run a plan up to 3 times; retry after a CRASH, and ONCE after FAIL_MENU (harness menu-navigation failure). Any other FAIL is not retried (no waits or delays are added, see research/01 "Automated test runs").
+# Usage: bash src/tools/autotest_retry.sh <plan-name>      Prints "RETRY_SUMMARY plan attempts=<n> crashes=<c> final=<result>" at the end.
+DIR="$(dirname "$0")"
+ARGS_IN=()
+while [ $# -gt 0 ]; do
+  case "$1" in --input) export SN2_INPUT="$2"; shift 2;; *) ARGS_IN+=("$1"); shift;; esac
+done
+set -- "${ARGS_IN[@]}"
+PLAN="${1:?plan name}"   # input mode: --input os|engine (default engine; or env SN2_INPUT), forwarded to autotest.sh
+. "$DIR/sn2_env.sh"
+# RAM: hold the heavy lock (src/tools/heavy_lock.sh) for the whole run; waits up to SN2_LOCK_WAIT s (default 3600). Released at exit only if taken here.
+HL="$SN2_REPO/src/tools/heavy_lock.sh"
+if ! bash "$HL" check; then
+  bash "$HL" acquire game --wait "${SN2_LOCK_WAIT:-3600}" --note "autotest_retry $PLAN" || { echo "heavy lock not acquired - abort"; exit 2; }
+  trap 'bash "$HL" release >/dev/null' EXIT
+fi
+ATT=0; CR=0; MF=0; RES=""
+while [ $ATT -lt 3 ]; do
+  ATT=$((ATT + 1))
+  bash "$DIR/autotest.sh" "$PLAN"; RC=$?
+  . "$DIR/sn2_env.sh"
+  LAST=$(ls -d "$SN2_WORKSPACE/autotest/"*_"$PLAN" | tail -1)
+  RES=$(cat "$LAST/result.txt"); echo "attempt $ATT: $RES ($LAST)"
+  if [ "$RES" = CRASH ]; then CR=$((CR + 1))
+  elif [ "$RES" = FAIL_MENU ] && [ $MF -lt 1 ]; then MF=$((MF + 1)); echo "FAIL_MENU: harness navigation failure, retrying once (stall artefacts: $LAST/windows_menu.txt, $LAST/shots/stall_menu.png)"
+  elif [ "$RES" = FAIL_LUA_LOAD ]; then echo "FAIL_LUA_LOAD: Lua syntax error in an SN2* mod, not retryable (see $LAST/driver.log)"; break
+  else break; fi
+done
+echo "RETRY_SUMMARY plan=$PLAN attempts=$ATT crashes=$CR menu_fail_retries=$MF final=$RES"
+[ "$RES" = DONE ]

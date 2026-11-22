@@ -1,0 +1,12 @@
+{
+ "name": "sn2world_load",
+ "worldLevel": null,
+ "start": "load",
+ "loadSlot": "savegame_1",
+ "waypoints": [
+  {
+   "name": "spawn"
+  }
+ ],
+ "settleSeconds": 15
+}

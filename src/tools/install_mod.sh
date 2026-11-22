@@ -5,7 +5,11 @@
 set -euo pipefail
 . "$(dirname "$0")/sn2_env.sh"
 MOD="${1:?mod name}"
+# the game folder is shared by parallel sessions: install only while holding the heavy lock (src/tools/heavy_lock.sh); refreshes it if held
+bash "$(dirname "$0")/heavy_lock.sh" acquire game --wait "${SN2_LOCK_WAIT:-0}" >/dev/null || { echo "NOT INSTALLED: heavy lock busy (bash src/tools/heavy_lock.sh status)"; exit 4; }
 SRC="$SN2_REPO/src/mods/$MOD"
+# refuse Lua files with raw control characters (CR or anything < 0x20 except TAB/LF), see check_lua_ctl.py (2026-11-19 incident)
+python "$(dirname "$0")/check_lua_ctl.py" "$SRC/Scripts/"*.lua || { echo "NOT INSTALLED: raw control characters in Lua (file:line above)"; exit 5; }
 GAME="$SN2_UE4SS_DIR/Mods"
 BUNDLE="$SN2_WORKSPACE/install/Win64/ue4ss/Mods"
 [ -f "$SRC/Scripts/main.lua" ] || { echo "no $SRC/Scripts/main.lua"; exit 1; }

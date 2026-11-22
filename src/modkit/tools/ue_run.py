@@ -4,6 +4,7 @@ Usage (from the repo root):
   python -I src/modkit/tools/ue_run.py <script.py>        runs the file in the editor
   python -I src/modkit/tools/ue_run.py -c "<statement>"   runs one statement, prints its result
 Prints the editor's output (print / unreal.log lines); exit 1 on failure, 2 if no editor answers.
+Exit 5 if this session does not hold the heavy lock (src/tools/heavy_lock.sh; SN2_LOCK_SKIP=1 skips the check).
 The client module (remote_execution.py) is Epic's and is loaded from the engine named in local.config (SN2_MODKIT_DIR), not shipped here.
 """
 import os
@@ -34,8 +35,23 @@ def engine_python_dir(cfg):
     return os.path.join(engine, "Engine", "Plugins", "Experimental", "PythonScriptPlugin", "Content", "Python")
 
 
+def holds_heavy_lock(cfg):
+    """True if this session holds the heavy lock (src/tools/heavy_lock.sh writes <Workspace>/locks/heavy.info)."""
+    locks = cfg.get("SN2_LOCK_DIR") or os.path.join(cfg.get("SN2_WORKSPACE", ""), "locks")
+    me = cfg.get("SN2_LOCK_OWNER") or ("claude-pid-" + os.environ["CLAUDE_PID"] if os.environ.get("CLAUDE_PID") else "manual")
+    try:
+        info = dict(l.rstrip("\r\n").split("=", 1) for l in open(os.path.join(locks, "heavy.info"), encoding="utf-8") if "=" in l)
+    except OSError:
+        return False
+    return info.get("owner") == me
+
+
 def main():
-    sys.path.insert(0, engine_python_dir(load_config()))
+    cfg = load_config()
+    if cfg.get("SN2_LOCK_SKIP") != "1" and not holds_heavy_lock(cfg):
+        print("HEAVY LOCK NOT HELD by this session: run  bash src/modkit/tools/launch_editor.sh  (or  bash src/tools/heavy_lock.sh acquire editor)  first")
+        return 5
+    sys.path.insert(0, engine_python_dir(cfg))
     import remote_execution as rx  # noqa: E402  (Epic's client, from the engine)
 
     if len(sys.argv) < 2:

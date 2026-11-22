@@ -109,8 +109,9 @@ This unblocks SN1 terrain import (marching-cubes output = arbitrary triangle sou
   terrain plus the SN2 systems the game needs (BP_UWESky, BP_Ocean + ocean biome region, player start, WorldPop storage, edge-of-world ring)**.
 
 ## 5. SN1 import design (UNTESTED plan)
-1. Extract SN1 terrain: SN1 stores voxel octrees per batch (160 m cubes; map ≈ 26×26 batches horizontally). Format/location still to research.
+1. Extract SN1 terrain: SN1 stores voxel octrees per batch (160 m cubes, a 26×20×26 world). The file format is decoded and the extraction pipeline is planned in `10_sn1_world_data.md` (2026-11-19).
 2. Mesh each batch (marching cubes / dual contouring) → triangles + material ids; decimate; write a chunk file (needs the arbitrary-mesh path, §3).
 3. Deliver: stream chunk files around the player into `DynamicMeshActor`s (proven for one 160 m grid chunk in 0.27 s), or cook them as static meshes with the modkit.
 4. Clear SN2 underneath (§1) or place the map in open ocean and move the `BP_EdgeOfWorldVolume_C` ring; `BP_Ocean_C.BodySize` = 10 km × 10 km × 1 km.
-5. Coordinates: SN1 is Y-up metres, SN2 is Z-up centimetres → SN2 (x·100, z·100, y·100) + offset.
+5. Coordinates: SN1 is Y-up metres, SN2 is Z-up centimetres. Both engines are left-handed. Use **UE (X, Y, Z) = 100 · (unity.z, unity.x, unity.y) + offset**,
+   with quaternion UE (X, Y, Z, W) = (q.z, q.x, q.y, q.w) (UNTESTED derivation, `10` §3). The earlier formula here, (x·100, z·100, y·100), swaps two axes and would mirror the map. It is withdrawn (2026-11-19).

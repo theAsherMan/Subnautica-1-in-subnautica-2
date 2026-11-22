@@ -18,6 +18,7 @@
 #include "Kismet2/CompilerResultsLog.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Modules/ModuleManager.h"
+#include "UObject/UnrealType.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, SN2GraphTools);
 
@@ -328,4 +329,72 @@ bool USN2GraphLibrary::CompileWithLog(UBlueprint* Blueprint, TArray<FString>& Ou
 		OutMessages.Add(M->ToText().ToString());
 	}
 	return Blueprint->Status != BS_Error;
+}
+
+namespace
+{
+	FArrayProperty* FindObjectArrayProperty(UObject* Object, FName PropertyName)
+	{
+		if (!Object)
+		{
+			return nullptr;
+		}
+		FArrayProperty* Arr = CastField<FArrayProperty>(FindFProperty<FProperty>(Object->GetClass(), PropertyName));
+		if (!Arr || !CastField<FObjectPropertyBase>(Arr->Inner))
+		{
+			return nullptr;
+		}
+		return Arr;
+	}
+}
+
+TArray<FString> USN2GraphLibrary::DescribeObjectArray(UObject* Object, FName PropertyName)
+{
+	TArray<FString> Out;
+	FArrayProperty* Arr = FindObjectArrayProperty(Object, PropertyName);
+	if (!Arr)
+	{
+		Out.Add(FString::Printf(TEXT("MISSING %s"), *PropertyName.ToString()));
+		return Out;
+	}
+	FObjectPropertyBase* Inner = CastField<FObjectPropertyBase>(Arr->Inner);
+	FScriptArrayHelper Helper(Arr, Arr->ContainerPtrToValuePtr<void>(Object));
+	for (int32 i = 0; i < Helper.Num(); ++i)
+	{
+		UObject* E = Inner->GetObjectPropertyValue(Helper.GetRawPtr(i));
+		Out.Add(FString::Printf(TEXT("%d %s outer=%s"), i,
+			E ? *E->GetPathName() : TEXT("None"),
+			(E && E->GetOuter()) ? *E->GetOuter()->GetPathName() : TEXT("None")));
+	}
+	return Out;
+}
+
+int32 USN2GraphLibrary::ClearObjectArray(UObject* Object, FName PropertyName)
+{
+	FArrayProperty* Arr = FindObjectArrayProperty(Object, PropertyName);
+	if (!Arr)
+	{
+		return -1;
+	}
+	Object->Modify();
+	FScriptArrayHelper Helper(Arr, Arr->ContainerPtrToValuePtr<void>(Object));
+	const int32 N = Helper.Num();
+	Helper.EmptyValues();
+	return N;
+}
+
+void USN2GraphLibrary::NotifyPropertyChanged(UObject* Object, FName PropertyName)
+{
+	if (!Object)
+	{
+		return;
+	}
+	FProperty* Prop = FindFProperty<FProperty>(Object->GetClass(), PropertyName);
+	if (!Prop)
+	{
+		return;
+	}
+	Object->PreEditChange(Prop);
+	FPropertyChangedEvent Ev(Prop, EPropertyChangeType::ValueSet);
+	Object->PostEditChangeProperty(Ev);
 }

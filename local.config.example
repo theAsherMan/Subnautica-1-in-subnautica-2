@@ -10,3 +10,6 @@ SN2_WORKSPACE="C:/SN2Workspace"
 
 # Modkit root (needs ~60 GB): holds Subnautica2-Project\, UE_5.6_SN2\ (custom engine), downloads\, DDC\, Temp\
 SN2_MODKIT_DIR="D:/SN2Modkit"
+
+# Steam install folder of Subnautica 1 (contains Subnautica_Data\). Read-only source for the SN1 -> SN2 world converter. Optional until that converter exists.
+SN1_GAME_DIR="C:/Program Files (x86)/Steam/steamapps/common/Subnautica"

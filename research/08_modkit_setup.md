@@ -68,6 +68,10 @@ Goal from the tester: repeat "delete terrain + add custom terrain" using the edi
 - `src\modkit\tools\ue_run.py` (+ copy of the engine's `remote_execution.py` beside it): `python -I ue_run.py <file.py>` runs a file in the editor,
   `python -I ue_run.py -c "<stmt>"` evaluates one statement; prints the editor's output. Needs editor setting Project Settings → Plugins → Python →
   **Enable Remote Execution?** (UDP multicast 239.0.0.1:6766 bound to 127.0.0.1, TCP 127.0.0.1:6776). Before it is enabled: `NO EDITOR FOUND` (exit 2).
+- **Heavy lock (2026-11-19):** `ue_run.py` exits 5 (`HEAVY LOCK NOT HELD`) unless this session holds `src/tools/heavy_lock.sh`. VERIFIED in a scratch-dir test.
+  - Open the editor with `bash src/modkit/tools/launch_editor.sh`, which acquires `editor` and then runs `Launch-Editor.cmd`. It is UNTESTED with a real launch.
+  - `cook_install.sh` acquires `cook`.
+  - See `01_runbook.md` "Parallel sessions".
 - Fallback: the tester types `py "src/modkit/scripts/<file>.py"` in the editor's bottom `Cmd` box. Script output goes to `Saved\Logs\Subnautica2.log` (`LogPython`).
 - SN2 Mod Tools facts (source `Plugins\SN2ModTools\Source\SN2ModTools\Private\ModActions.cpp`): "New mod" = `BlueprintFactory(ParentClass=AActor)` → `Content/Mods/<Mod>/ModActor`
   + `PrimaryAssetLabel` `PAL_<Mod>` (ChunkId = lowest unused 1–300, CookRule AlwaysCook, bLabelAssetsInMyDirectory). "Cook & Install" runs
@@ -89,6 +93,7 @@ bounds origin (0,0,378) extent (8000,8000,1228). Gotchas:
 - `SubobjectDataBlueprintFunctionLibrary.get_object` is deprecated (use `get_associated_object`) but works.
 
 ### Cook + install (2026-11-16)
+- **Cook guard (2026-11-19, `cook_install.sh`):** after the cook it greps the log for `AttachTo: .* Aborting` lines mentioning `/Game/Mods/<MOD>/`, prints them (counted, truncated) and exits 3 WITHOUT installing, unless `SN2_ALLOW_ATTACH_ABORTS=1` (known benign: the ocean `WaterBodyOceanComponent ... WaterSpline` line). Reason: the cooker silently drops attaches it cannot do (STATIC child on a MOVABLE parent) and an editor in-memory check does not show it. Caveat: an incremental cook with `Packages Cooked: 0` logs no aborts, so the guard only sees them on the run that recooked the map. Closing the editor: `python -I src/modkit/tools/ue_run.py -c "unreal.SystemLibrary.execute_console_command(unreal.EditorLevelLibrary.get_editor_world(), 'QUIT_EDITOR')"`. VERIFIED 2026-11-19 (guard fired exit 3 on the ocean lines, install with the override worked).
 - Ran the Mod Tools BuildCookRun command myself (TEMP in <ModkitDir>; now scripted as `src/modkit/tools/cook_install.sh`) → `<ModkitDir>\cook_SN2Terrain.log`. First run: UAT exit 6 (VS instance invisible, see the VS cache trap in the caches table).
   Second run: **BUILD SUCCESSFUL** — build (UBT, Subnautica2 Win64 Shipping) 698 s, cook 428 s (`Packages Cooked: 615 ... Total 624`), UnrealPak ~20 s.
   Re-cooks are incremental (`-iterativecooking -cookincremental`) and should be much faster.
@@ -113,6 +118,7 @@ bounds origin (0,0,378) extent (8000,8000,1228). Gotchas:
 - Build: `Engine\Build\BatchFiles\Build.bat Subnautica2Editor Win64 Development -Project=<uproject> -WaitMutex -NoHotReloadFromIDE` with TEMP in <ModkitDir>, editor closed.
   First build recompiles all project editor plugins (78–123 actions, 640 s). A run killed by RAM pressure (other apps using memory) left the log cut off mid-list with exit 4 —
   just rerun; finished actions are kept. `-MaxParallelActions=4` lowers RAM use.
+- **Build 2026-11-18 (3 new reflection functions, see `07`):** `Build.bat Subnautica2Editor Win64 Development -Project=<uproject> -WaitMutex -NoHotReloadFromIDE -MaxParallelActions=4`, editor closed, TEMP in `<ModkitDir>\Temp`: 6 actions, **289 s, Result: Succeeded**. Started from a `.cmd` wrapper (log `<ModkitDir>/build_graphtools_ocean.log`). After the build the editor (started with `Start-Process Launch-Editor.cmd`; `cmd /c start` from Git Bash did NOT start it) took ~15 min until `ue_run.py` connected; early attempts fail with `NO EDITOR FOUND` and then `Remote party failed to attempt the command socket connection!` (editor still starting) - just retry. Cook with the editor closed: `cook_install.sh SN2EmptyWorld 2` = 116 s, BUILD SUCCESSFUL (VERIFIED 2026-11-18).
 - **UE Python gotchas (2026-11-16):** (1) Kismet libraries are renamed in Python (`unreal.KismetMathLibrary` → AttributeError; it is `MathLibrary`) — load by path
   instead: `unreal.load_class(None, "/Script/Engine.KismetMathLibrary")`. (2) A UFUNCTION returning `bool` with out-params returns **only the out-params, or `None`
   when the bool is false** (`connect` → message str / None; `compile_with_log` → [msgs] / None). (3) Class pins don't connect to Object pins (GetObjectClass →

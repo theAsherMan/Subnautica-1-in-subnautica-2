@@ -80,4 +80,16 @@ public:
 	/** Marks the Blueprint structurally modified, compiles it, returns false on error; all compiler messages in OutMessages. */
 	UFUNCTION(BlueprintCallable, Category = "SN2|Graph")
 	static bool CompileWithLog(UBlueprint* Blueprint, TArray<FString>& OutMessages);
+
+	/** One line per element of an array-of-object-pointers property: "<index> <path name> outer=<outer path name>"; single line "MISSING <name>" if absent / wrong type. */
+	UFUNCTION(BlueprintCallable, Category = "SN2|Reflection")
+	static TArray<FString> DescribeObjectArray(UObject* Object, FName PropertyName);
+
+	/** Empties an array-of-object-pointers property (Modify() first). Returns the removed count, -1 if the property is missing / wrong type. */
+	UFUNCTION(BlueprintCallable, Category = "SN2|Reflection")
+	static int32 ClearObjectArray(UObject* Object, FName PropertyName);
+
+	/** PreEditChange + PostEditChangeProperty(ValueSet) for the named property, so the object reacts as if edited in the details panel. */
+	UFUNCTION(BlueprintCallable, Category = "SN2|Reflection")
+	static void NotifyPropertyChanged(UObject* Object, FName PropertyName);
 };

@@ -22,7 +22,15 @@ If it is missing, ask the user for the paths and create it.
   (`src/tools/relaunch_on_exit.sh` in the background, then ask the tester to quit). Save backup: `bash src/tools/backup_saves.sh`.
 - Watch results with the Monitor tool on `bash src/tools/watch_log.sh`; re-arm it after expiry and after any session restart.
 - Modkit (Unreal editor) work: `src/modkit/` — editor Python scripts in `scripts/`, runner `tools/ue_run.py` (runs them inside the open editor),
-  `tools/cook_install.sh <Mod> <ChunkId>`, `Launch-Editor.cmd`, editor add-on source `plugins/SN2GraphTools` (copied into the modkit project). See `research/08_modkit_setup.md`.
+  `tools/cook_install.sh <Mod> <ChunkId>`, `tools/launch_editor.sh` (opens the editor; use it instead of double-clicking `Launch-Editor.cmd`), editor add-on source `plugins/SN2GraphTools` (copied into the modkit project). See `research/08_modkit_setup.md`.
+
+## Parallel sessions: one heavy job at a time
+RAM allows only one of these at a time: the game, the modkit editor, a cook, or the SN1 builder. Several sessions may run at once, so they share the lock `bash src/tools/heavy_lock.sh`.
+- Check `heavy_lock.sh status` before planning heavy work.
+- launch_game / install_mod / launch_editor / ue_run / cook_install / autotest take or require the lock themselves, and refuse with exit 4, 5 or 2 when another session holds it.
+- To wait for the lock, run `heavy_lock.sh acquire <what> --wait <s>` in the background. Do not poll.
+- When done: close what you started (game or editor), then run `heavy_lock.sh release`. Never `release --force` another session's lock unless the user says so.
+- Install your mods right before you launch: the game folder is shared between sessions. Details: `research/01_runbook.md` "Parallel sessions".
 
 ## Working with the tester
 - The tester (the person at the PC) plays and presses the in-game keys; you cannot. Give the exact key, where to be, and what should happen. Ask what is visible — the log only proves calls ran.

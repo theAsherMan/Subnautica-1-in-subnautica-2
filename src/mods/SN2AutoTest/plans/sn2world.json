@@ -1,0 +1,43 @@
+{
+ "name": "sn2world",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "spawn"
+  },
+  {
+   "name": "pod_surface_side",
+   "offset": [
+    1500,
+    0,
+    300
+   ]
+  },
+  {
+   "name": "pod_underwater_side",
+   "offset": [
+    1500,
+    0,
+    -300
+   ]
+  },
+  {
+   "name": "pod_deep_below",
+   "offset": [
+    0,
+    0,
+    -5000
+   ]
+  },
+  {
+   "name": "far_500m",
+   "offset": [
+    50000,
+    0,
+    -300
+   ]
+  }
+ ],
+ "settleSeconds": 15
+}

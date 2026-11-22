@@ -7,3 +7,20 @@ src/tools/sn2_packaged_files.txt
 local.config
 src/modkit/plugins/*/Binaries/
 src/modkit/plugins/*/Intermediate/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Secrets and per-user tool settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+credentials*.json
+secrets*.json
+*.secret
+.claude/settings.local.json

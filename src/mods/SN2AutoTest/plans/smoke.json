@@ -1,0 +1,11 @@
+{
+ "name": "smoke",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "spawn"
+  }
+ ],
+ "settleSeconds": 15
+}

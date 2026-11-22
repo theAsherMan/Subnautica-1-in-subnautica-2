@@ -1,0 +1,325 @@
+{
+ "_comment": "True screen of every menu_NN shot (NN = 1-based index, the shot is taken AFTER that step's action, so it shows the screen that appeared) of the known autotest runs; 'o' = no known menu screen (loading screen / in-game view). All in-game waypoint shots NN_*_kN.png count as 'o'. Run folders live under <Workspace>/autotest/. Boxes = UI regions (1920x1080) used for the fingerprints. Labels checked by eye on contact sheets 2026-11-19; 225357 menu_07 is slot_pane because the Enter key was ignored (that run failed). Runs 200435/221735/163751 are the title-screen flakes (clicks ignored). 2026-11-19 later: runs 170405/175842/180144/201610/201807 added; 'masks' = rects zeroed in the fingerprint (save_list masks the save rows, which grow with every test run); 'extra' = single stall shots.",
+ "thresholds": {
+  "accept": 0.4,
+  "margin": 0.3
+ },
+ "boxes": {
+  "notice": [
+   360,
+   300,
+   1560,
+   560
+  ],
+  "title": [
+   420,
+   380,
+   1500,
+   700
+  ],
+  "main_menu": [
+   580,
+   390,
+   1450,
+   690
+  ],
+  "save_list": [
+   580,
+   330,
+   1460,
+   720
+  ],
+  "create_game": [
+   540,
+   230,
+   1380,
+   860
+  ],
+  "slot_menu": [
+   900,
+   330,
+   1720,
+   760
+  ],
+  "slot_pane": [
+   700,
+   330,
+   1220,
+   760
+  ],
+  "pause_menu": [
+   780,
+   270,
+   1140,
+   770
+  ],
+  "exit_confirm": [
+   780,
+   380,
+   1140,
+   640
+  ]
+ },
+ "nopawn_is": {
+  "20261118_200435_lmain_baseline": "title",
+  "20261118_221735_smoke": "title",
+  "20261119_163751_smoke": "title"
+ },
+ "runs": {
+  "20261118_195053_smoke": [
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_195450_smoke": [
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_195732_lmain_baseline": [
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "o",
+   "o",
+   "o",
+   "o"
+  ],
+  "20261118_200435_lmain_baseline": [
+   "notice",
+   "title",
+   "title",
+   "title"
+  ],
+  "20261118_215800_smoke": [
+   "notice",
+   "title",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_221254_smoke": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_221735_smoke": [
+   "notice",
+   "title",
+   "title",
+   "title",
+   "title"
+  ],
+  "20261118_222318_smoke": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_222724_smoke": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_223108_smoke": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_223431_smoke": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_223810_smoke": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_224137_lmain_baseline": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "o",
+   "o",
+   "o",
+   "o"
+  ],
+  "20261118_224826_sn2world": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_225357_sn2world_load": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "slot_menu",
+   "slot_pane",
+   "slot_pane",
+   "slot_pane"
+  ],
+  "20261118_230029_sn2world_load": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "slot_menu",
+   "slot_pane",
+   "slot_pane",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261118_230348_smoke": [
+   "main_menu",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "main_menu"
+  ],
+  "20261119_163751_smoke": [
+   "notice",
+   "title",
+   "title",
+   "title",
+   "title"
+  ],
+  "20261119_170405_smoke": [
+   "title",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "o"
+  ],
+  "20261119_175842_smoke": [
+   "title",
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "o"
+  ],
+  "20261119_180144_sn2world": [
+   "main_menu",
+   "save_list",
+   "create_game",
+   "o",
+   "o",
+   "pause_menu",
+   "exit_confirm",
+   "o"
+  ],
+  "20261119_201610_lmain_baseline": [
+   "main_menu",
+   "save_list"
+  ],
+  "20261119_201807_lmain_baseline": [
+   "main_menu",
+   "save_list"
+  ]
+ },
+ "masks": {
+  "save_list": [
+   [
+    990,
+    455,
+    1470,
+    730
+   ]
+  ]
+ },
+ "extra": [
+  {
+   "file": "20261119_201610_lmain_baseline/shots/stall_menu.png",
+   "label": "save_list"
+  },
+  {
+   "file": "20261119_201807_lmain_baseline/shots/stall_menu.png",
+   "label": "save_list"
+  },
+  {
+   "file": "20261119_201024_lmain_baseline/shots/stall_lobby.png",
+   "label": "title"
+  },
+  {
+   "file": "20261119_180144_sn2world/shots/02_pod_underwater_side_k4.png",
+   "label": "pause_menu"
+  }
+ ],
+ "not_o": [
+  "20261119_180144_sn2world/shots/02_pod_underwater_side_k4.png"
+ ]
+}
