@@ -190,8 +190,13 @@ def main():
         return selftest(exe)
     if a[0] == "launch":
         os.environ["SteamAppId"] = "1962700"; os.environ["SteamGameId"] = "1962700"   # needed for a direct launch (git b949409)
+        # HOLDER: this process owns the desktop handle and must stay alive until the game exits. Exiting right after CreateProcess
+        # destroyed the desktop before the game's user32 attached (run 20261122_132101: game never ran). (see research/01).
         h = create_desktop(); pid, hp = launch_on_desktop(a[1:])
-        print("pid", pid); return 0
+        print("pid", pid, flush=True)
+        k32.WaitForSingleObject.argtypes = [wt.HANDLE, wt.DWORD]
+        k32.WaitForSingleObject(hp, 0xFFFFFFFF if "--nowait" not in os.environ else 0)
+        close_desktop(h); print("game exited; desktop closed", flush=True); return 0
     if a[0] == "windows":
         h = u32.OpenDesktopW(DESK, 0, False, DESKTOP_ALL)
         for w in list_windows(h): print(w)

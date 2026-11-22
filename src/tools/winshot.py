@@ -29,7 +29,12 @@ def capture(hwnd, flags=PW_CLIENTONLY | PW_RENDERFULLCONTENT):
     from PIL import Image
     w, h = client_size(hwnd)
     if w <= 0 or h <= 0:
-        raise RuntimeError("window client area is empty (%dx%d) - minimized?" % (w, h))
+        # hidden-desktop window: GetClientRect returns 0x0 from another desktop. Fall back to the window rect, whole window.
+        r = wt.RECT(); user32.GetWindowRect(hwnd, ctypes.byref(r))
+        w, h = r.right - r.left, r.bottom - r.top
+        flags = flags & ~PW_CLIENTONLY
+        if w <= 0 or h <= 0:
+            raise RuntimeError("window client area is empty (%dx%d) - minimized?" % (w, h))
     hdc_win = user32.GetDC(hwnd)
     hdc = gdi32.CreateCompatibleDC(hdc_win)
     bmp = gdi32.CreateCompatibleBitmap(hdc_win, w, h)

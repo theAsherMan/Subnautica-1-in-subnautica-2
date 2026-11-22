@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 # Run a plan up to 3 times; retry after a CRASH, and ONCE after FAIL_MENU (harness menu-navigation failure). Any other FAIL is not retried (no waits or delays are added, see research/01 "Automated test runs").
-# Usage: bash src/tools/autotest_retry.sh <plan-name>      Prints "RETRY_SUMMARY plan attempts=<n> crashes=<c> final=<result>" at the end.
+# Usage: bash src/tools/autotest_retry.sh <plan-name> --timeout <s> [--check <s>] [--visible] [--input os|engine] [--timeout-reason ..] [--after-fix ..]  (options are forwarded to autotest.sh; --timeout is per attempt)
+# (old usage text follows) bash src/tools/autotest_retry.sh <plan-name>      Prints "RETRY_SUMMARY plan attempts=<n> crashes=<c> final=<result>" at the end.
 DIR="$(dirname "$0")"
-ARGS_IN=()
+ARGS_IN=(); PASS=()
 while [ $# -gt 0 ]; do
-  case "$1" in --input) export SN2_INPUT="$2"; shift 2;; *) ARGS_IN+=("$1"); shift;; esac
+  case "$1" in
+    --input) export SN2_INPUT="$2"; shift 2;;
+    --visible|--hidden) PASS+=("$1"); shift;;
+    --timeout|--check|--timeout-reason|--after-fix) PASS+=("$1" "$2"); shift 2;;
+    *) ARGS_IN+=("$1"); shift;;
+  esac
 done
 set -- "${ARGS_IN[@]}"
 PLAN="${1:?plan name}"   # input mode: --input os|engine (default engine; or env SN2_INPUT), forwarded to autotest.sh
 . "$DIR/sn2_env.sh"
+# refusals (--timeout missing, no Steam, timeout raise/two-timeouts rules) BEFORE the lock is taken: autotest.sh --precheck-only
+bash "$DIR/autotest.sh" "${PASS[@]}" "$PLAN" --precheck-only || exit $?
 # RAM: hold the heavy lock (src/tools/heavy_lock.sh) for the whole run; waits up to SN2_LOCK_WAIT s (default 3600). Released at exit only if taken here.
 HL="$SN2_REPO/src/tools/heavy_lock.sh"
 if ! bash "$HL" check; then
@@ -18,7 +26,7 @@ fi
 ATT=0; CR=0; MF=0; RES=""
 while [ $ATT -lt 3 ]; do
   ATT=$((ATT + 1))
-  bash "$DIR/autotest.sh" "$PLAN"; RC=$?
+  bash "$DIR/autotest.sh" "${PASS[@]}" "$PLAN"; RC=$?
   . "$DIR/sn2_env.sh"
   LAST=$(ls -d "$SN2_WORKSPACE/autotest/"*_"$PLAN" | tail -1)
   RES=$(cat "$LAST/result.txt"); echo "attempt $ATT: $RES ($LAST)"

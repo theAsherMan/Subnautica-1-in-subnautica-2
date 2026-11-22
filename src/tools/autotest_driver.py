@@ -141,8 +141,43 @@ def _cls(h):
     user32.GetClassNameW(h, b, 256)
     return b.value
 
+def _on_hidden_desktop(fn):
+    """run fn() in a worker thread attached (SetThreadDesktop) to the hidden desktop SN2Test: EnumWindows / EnumChildWindows / WM_GETTEXT / PostMessage
+    only see windows of the calling thread's desktop. Never switches the input desktop. Returns fn()'s result, or None if the desktop is missing."""
+    import threading
+    box = {}
+    def work():
+        user32.OpenDesktopW.restype = wt.HANDLE
+        user32.SetThreadDesktop.argtypes = [wt.HANDLE]
+        hd = user32.OpenDesktopW("SN2Test", 0, False, 0x01FF | 0x000F0000)
+        if not hd:
+            box["r"] = None; return
+        try:
+            if not user32.SetThreadDesktop(hd):
+                box["err"] = "SetThreadDesktop failed %d" % ctypes.get_last_error(); box["r"] = None; return
+            box["r"] = fn()
+        except Exception as e:
+            box["err"] = repr(e); box["r"] = None
+        finally:
+            pass
+    t = threading.Thread(target=work); t.start(); t.join(30)
+    if "err" in box: print("[driver] hidden-desktop worker: %s" % box["err"], flush=True)
+    return box.get("r")
+
+def post_click(hwnd):
+    """BM_CLICK on a button (no focus, no mouse); on the hidden desktop through an attached worker thread"""
+    if os.environ.get("SN2_HIDDEN_DESKTOP") == "1":
+        _on_hidden_desktop(lambda: user32.PostMessageW(hwnd, 0x00F5, 0, 0)); return
+    user32.PostMessageW(hwnd, 0x00F5, 0, 0)
+
 def find_game_dialogs():
-    """visible top-level windows of the game process with class #32770: [{hwnd,title,texts,buttons:[{text,hwnd,rect}]}]"""
+    """visible top-level windows of the game process with class #32770: [{hwnd,title,texts,buttons:[{text,hwnd,rect}]}]
+    (hidden-desktop runs: the SN2Test desktop only, never the user's)"""
+    if os.environ.get("SN2_HIDDEN_DESKTOP") == "1":
+        return _on_hidden_desktop(_find_game_dialogs_here) or []
+    return _find_game_dialogs_here()
+
+def _find_game_dialogs_here():
     pids = set(game_pids())
     dialogs = []
     if not pids:
@@ -408,6 +443,13 @@ def grab_win():
     if user32.IsIconic(h):
         raise RuntimeError("game window is minimized (PrintWindow cannot capture it)")
     im, ok = winshot.capture(h)
+    if os.environ.get("SN2_HIDDEN_DESKTOP") == "1" and im.size != (SW, SH) and im.size[0] >= SW and im.size[1] >= SH:
+        # cross-desktop capture is the whole window (GetClientRect is 0x0 there): crop the frame (side/bottom border b, title bar on top) to the 1920x1080 client
+        b = (im.size[0] - SW) // 2; top = im.size[1] - SH - b
+        if not _cap_warned[0]:
+            _cap_warned[0] = True
+            print("[driver] hidden capture %dx%d -> cropped to client %dx%d (border %d, title %d)" % (im.size[0], im.size[1], SW, SH, b, top), flush=True)
+        im = im.crop((b, top, b + SW, top + SH))
     if im.size != (SW, SH):
         if not _cap_warned[0]:
             _cap_warned[0] = True
@@ -658,42 +700,41 @@ def run_plan(plan_path):
     def menu_shot(screen):
         menu_n[0] += 1
         shot(os.path.join(shots_dir, "menu_%02d_%s.png" % (menu_n[0], screen)))
-    def q2_window(i):
-        """hidden-desktop test: an input window. The harness is idle; the REAL mouse is moved (relative moves only, cursor restored);
-        the Lua mod logs 'Q2 ...' every 500 ms while run/q2.txt exists. Status lines go to <Workspace>/autotest/hidden_desktop_status.txt"""
-        spec = os.environ.get("SN2_Q2_WINDOWS")
-        if not spec or not ENG: return
-        try: s_, e_ = spec.split(",")[i].split("-")
-        except IndexError: return
-        def hms(t):
-            lt = time.localtime(); h, m, sec = [int(x) for x in t.split(":")]
-            return time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, h, m, sec, 0, 0, -1))
+    def q2_window(label):
+        """hidden-desktop test, IN-WORLD after readiness (pawn live). label 'A' = hands-off + harness mouse wiggle (relative SendInput MOVES only, cursor restored),
+        'B' = the user's own input (move/click/W A S D Tab Esc in their own window), harness idle (no wiggle). Env SN2_HIDDEN_WINDOWS=1 enables, SN2_WINDOW_SECS (30),
+        SN2_WINDOW_LEAD (35: notice before the window opens). The Lua mod logs 'Q2 <time> world pawn yaw pitch ui' every 500 ms while run/q2.txt exists.
+        Status lines go to <Workspace>/autotest/hidden_desktop_status.txt"""
+        if os.environ.get("SN2_HIDDEN_WINDOWS") != "1" or not ENG: return
+        wiggle = label == "A"
+        kind = "hands-off" if wiggle else "USER INPUT"
+        dur = float(os.environ.get("SN2_WINDOW_SECS", "30")); lead = float(os.environ.get("SN2_WINDOW_LEAD", "35"))
         st = os.path.join(os.path.dirname(os.environ["SN2_AUTOTEST_OUT"]), "hidden_desktop_status.txt")
         def status(t):
             with open(st, "a") as f: f.write(t + chr(10))
             say(t)
-        start, end = hms(s_), hms(e_)
-        dur = end - start
-        if time.time() > start:
-            say("Q2 window %d: harness reached it late, slipping to now" % i); start = time.time(); end = start + dur
+        start = time.time() + lead
+        status("WINDOW %s STARTS AT %s (%s)" % (label, time.strftime("%H:%M:%S", time.localtime(start)), kind))
         while time.time() < start: time.sleep(0.2)
-        try: shot(os.path.join(shots_dir, "q2_%d_before.png" % i))
+        try: shot(os.path.join(shots_dir, "q2_%s_before.png" % label))
         except Exception as ex: say("Q2 shot before failed: %s" % ex)
         open(os.path.join(run_dir(), "q2.txt"), "w").write("1")
-        status("INPUT WINDOW OPEN %s" % time.strftime("%H:%M:%S"))
+        end = time.time() + dur
+        status("WINDOW %s OPEN %s (%s)" % (label, time.strftime("%H:%M:%S"), kind))
         pt = wt.POINT(); user32.GetCursorPos(ctypes.byref(pt)); ox, oy = pt.x, pt.y
         pat = [(15, 0), (0, 15), (-15, 0), (0, -15)]; k = 0
         try:
             while time.time() < end:
-                _i = INPUT(type=0); _i.u.mi = MOUSEINPUT(pat[k % 4][0], pat[k % 4][1], 0, 0x0001, 0, 0)   # relative MOVE only (deliberate real-input exception for this test)
-                user32.SendInput(1, ctypes.byref(_i), ctypes.sizeof(INPUT)); k += 1
+                if wiggle:
+                    _i = INPUT(type=0); _i.u.mi = MOUSEINPUT(pat[k % 4][0], pat[k % 4][1], 0, 0x0001, 0, 0)   # relative MOVE only (deliberate real-input exception for this test)
+                    user32.SendInput(1, ctypes.byref(_i), ctypes.sizeof(INPUT)); k += 1
                 time.sleep(0.4)
         finally:
-            user32.SetCursorPos(ox, oy)
+            if wiggle: user32.SetCursorPos(ox, oy)
             try: os.remove(os.path.join(run_dir(), "q2.txt"))
             except OSError: pass
-            status("INPUT WINDOW CLOSED")
-        try: shot(os.path.join(shots_dir, "q2_%d_after.png" % i))
+            status("WINDOW %s CLOSED %s" % (label, time.strftime("%H:%M:%S")))
+        try: shot(os.path.join(shots_dir, "q2_%s_after.png" % label))
         except Exception as ex: say("Q2 shot after failed: %s" % ex)
     class MenuFail(Exception):
         def __init__(self, screen, what, kind="menu"):
@@ -900,12 +941,14 @@ def run_plan(plan_path):
                     except Exception as e: say("dialog screenshot failed: %s" % e)
                 n_dialogs += 1
                 pick = next((b for b in d["buttons"] if b["text"].strip().lower() in ("ok", "continue", "close")), None)
+                if os.environ.get("SN2_HIDDEN_DESKTOP") == "1" and not (len(d["buttons"]) == 1 and d["buttons"][0]["text"].strip().lower() == "ok"):
+                    pick = None   # hidden run: only an OK-only dialog is ever clicked
                 if not pick:
                     save_stall(out, "dialog")
                     print("[driver] RESULT FAIL_DIALOG buttons=%r" % labels, flush=True)
                     return 4
                 if ENG:
-                    user32.PostMessageW(pick["hwnd"], 0x00F5, 0, 0)   # BM_CLICK: no focus, no mouse
+                    post_click(pick["hwnd"])   # BM_CLICK: no focus, no mouse
                 else:
                     focus(d["hwnd"])
                     click_window_button(pick)
@@ -940,7 +983,6 @@ def run_plan(plan_path):
         fps_probe("menu_ready")
         print("[driver] MENU_READY_AT %.3f" % t_ready, flush=True)
         mark = log_size()
-        q2_window(0)
         do_steps(menus["load_game" if plan.get("start") == "load" else "new_game"])
         # world
         if not wait_log(r"\[SN2AutoTest\] PAWN possessed", mark, 240):
@@ -962,7 +1004,7 @@ def run_plan(plan_path):
                 break
         say("readiness reached after %.1f s (pawn stable x%d)" % (time.time() - t_pw, stable_n))
         fg_probe("ingame")
-        q2_window(1)
+        q2_window("A"); q2_window("B")
         _t_ms = time.time(); menu_shot("ingame_first"); say("TIMING menu_shot ingame_first %.1f s" % (time.time() - _t_ms))
         cal = menus["calibration"]
         n = 0
@@ -1043,6 +1085,7 @@ def run_plan(plan_path):
                 elif adv >= nfr:
                     return adv
                 time.sleep(0.1)
+        prev_shot = [None]
         def do_waypoint(wi, wp):
             nonlocal n
             if wi < 5:
@@ -1067,7 +1110,14 @@ def run_plan(plan_path):
                 wait_frames(10 if k == 0 else 6, 0.0, ("wp_%s" % wp["name"]) if k == 0 else None)
                 chk(wi, wp)
                 fn = "%02d_%s_k%d.png" % (wi, wp["name"], k)
-                shot(os.path.join(shots_dir, fn))
+                _im = shot(os.path.join(shots_dir, fn))
+                try:   # Q1 evidence: per-shot luma + mean abs diff to the previous shot (0 = identical/stale frame)
+                    import numpy as _np
+                    _a = _np.asarray(_im.convert("L"), dtype=_np.float32)
+                    _d = float(_np.abs(_a - prev_shot[0]).mean()) if prev_shot[0] is not None else -1.0
+                    prev_shot[0] = _a
+                    say("Q1 %s luma=%.1f diff_prev=%s" % (fn, float(_a.mean()), "n/a" if _d < 0 else "%.2f" % _d))
+                except Exception as _ex: say("Q1 stats failed: %s" % _ex)
                 st = st or get_state() or {"pawn": (0, 0, 0), "cam": (0, 0, 0), "yaw": float("nan"), "pitch": float("nan")}
                 with open(manifest, "a") as f:
                     f.write("%d\t%s\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%s\n" % (wi, wp["name"], k, st["yaw"], *st["pawn"], *st["cam"], int(time.time()), fn))
@@ -1093,6 +1143,9 @@ def run_plan(plan_path):
             if game_pids():
                 raise
             say("game window closed after the last quit click (expected)")
+        _tq = time.time()
+        while game_pids() and time.time() - _tq < 30: time.sleep(1.0)
+        say("CLEAN QUIT path=main_quit exe_exited=%s after %.1f s (autotest.sh force-kills only if it is still running 60 s after the driver ends)" % (not game_pids(), time.time() - _tq))
         if game_pids():
             save_stall(out, "quit"); say("QUIT_FAILED game process still running after the quit steps")
             print("[driver] RESULT FAIL_QUIT game still running"); clean_exit(False); return 1
@@ -1164,6 +1217,18 @@ def main(argv):
             for l in txt.splitlines():
                 if "[SN2AutoTest]" in l: print(l)
             return 0 if ok else 1
+        if c == "quit":   # engine mode: best-effort clean quit for autotest.sh timeout/stop: main_quit click via the command channel, WM_CLOSE fallback
+            ENG = True
+            ok, d, _ = send_cmd("click", "fn:HandleButtonClicked name:QuitButton@WBP_MainLobbyScreen", 8)
+            print("quit click ok=%s detail=%s" % (ok, d))
+            if not ok:
+                def _close():
+                    h = game_hwnd()
+                    if h: user32.PostMessageW(h, 0x0010, 0, 0)
+                    return bool(h)
+                r = _on_hidden_desktop(_close) if os.environ.get("SN2_HIDDEN_DESKTOP") == "1" else _close()
+                print("WM_CLOSE posted=%s" % r)
+            return 0
         if c == "dismiss":   # engine mode: BM_CLICK (no focus/mouse) on ok/continue/close of the game's start-up dialog(s)
             for d in find_game_dialogs():
                 pick = next((b for b in d["buttons"] if b["text"].strip().lower() in ("ok", "continue", "close")), None)

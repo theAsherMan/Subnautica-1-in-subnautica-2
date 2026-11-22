@@ -1025,7 +1025,9 @@ if ENGINE then
                 local y, p = camRot()
                 local w = "?"
                 if pc then pcall(function() w = pc:GetWorld():GetFName():ToString() end) end
-                log(string.format("Q2 %s world=%s pawn=(%.1f,%.1f,%.1f) yaw=%.2f pitch=%.2f", os.date("%H:%M:%S"), w, px, py, pz, y or 0, p or 0))
+                local ui = {}
+                pcall(function() for _, r in ipairs(viewportRoots()) do if r.vis then ui[#ui + 1] = r.cls end end end)
+                log(string.format("Q2 %s world=%s pawn=(%.1f,%.1f,%.1f) yaw=%.2f pitch=%.2f ui=%s", os.date("%H:%M:%S"), w, px, py, pz, y or 0, p or 0, table.concat(ui, ",")))
             end)
         end)
         return false

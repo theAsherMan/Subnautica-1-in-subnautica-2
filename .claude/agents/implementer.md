@@ -15,12 +15,19 @@ You are the implementer for the Subnautica 1 → Subnautica 2 project. A plannin
 4. Check `bash src/tools/heavy_lock.sh status` before any heavy job (game, modkit editor, cook, SN1 builder). Only one runs at a time.
 
 ## Game runs need the user's approval
-- Any run that launches the game (`autotest.sh`, `autotest_retry.sh`, `launch_game.sh`) takes over the user's mouse and keyboard.
+- Any run that launches the game (`autotest.sh`, `autotest_retry.sh`, `launch_game.sh`) uses the PC's memory and the shared game folder. A visible run (`--visible` or `SN2_HIDDEN=0`, or `launch_game.sh`) also takes over the user's mouse and keyboard. Autotest runs on the hidden desktop by default.
 - Launch the game only if the plan explicitly says that run is approved. Run exactly the approved plans, in the stated order, and nothing more.
 - `autotest_retry.sh`'s automatic retry after a `CRASH` is allowed. Any other failure (`FAIL_MENU`, `FAIL_LOBBY`, `FAIL_NOPAWN`, `FAIL_FOCUS`, `FAIL_LUA_LOAD`, `TIMEOUT`, `EXITED`) is never re-run on your own. Investigate it and report.
 - The modkit editor and cooks do not touch the user's input, so they need no approval. They still go through the lock tools.
 - Investigating a failed or stalled run: look at `shots/stall_*.png` and `windows_*.txt` in the run folder FIRST, before forming any theory.
 - Do not edit harness, mod or map code while a run is executing. Bash reads scripts incrementally.
+
+## Timeouts and check periods (mandatory for every test)
+- Every test you run has a timeout: game runs, cooks, editor scripts, any long job. Set it before you start and pass it to the tool (`autotest.sh --timeout <s>`; for other jobs, the Monitor timeout). Base the number on evidence, such as earlier run times (`summary.txt` "run time") plus a margin. State the reasoning in one line in your report.
+- If you are unsure how long a test will take, also set a check period. When it elapses you are woken. Read the test data (status file, driver.log tail, latest shots), then either terminate the test or set another check period. A check period never extends the timeout.
+- When a timeout is hit, do NOT just rerun with a bigger number. To raise it, first find out from the run data why the previous estimate was wrong: which phase ran long, by how much, and why. Record that finding (`--timeout-reason`).
+- If the second timeout is also hit, assume something is broken. Stop retrying, investigate it as a failure, and report to the planner.
+- These rules do not replace the approval rule: every rerun still needs an approved run.
 
 ## Waiting for long jobs (runs, cooks)
 - Start the job with `run_in_background`. Then keep yourself active until it ends: arm the Monitor tool with an until-loop that exits when the run's `result.txt` exists (or the cook ends) and `heavy_lock.sh status` no longer says HELD. Use a 30 min timeout and re-arm on expiry.

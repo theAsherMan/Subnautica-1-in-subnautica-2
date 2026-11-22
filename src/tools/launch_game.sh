@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch Subnautica 2 the way the Steam "Play" button does: steam.exe -applaunch 1962700 <args>. Steam must be running.
+# Launch Subnautica 2 the way the Steam "Play" button does: steam.exe -applaunch 1962700 <args>. Steam is started minimized if needed (ensure_steam).
 # No gameplay args by default (new games start through the map's own start rules, research/09). Only display args are passed by autotest.sh
 # (-windowed -ResX=1920 -ResY=1080 -WinX=0 -WinY=0).
 # Usage: bash src/tools/launch_game.sh [extra game args...]
@@ -8,9 +8,10 @@
 . "$(dirname "$0")/sn2_env.sh"
 # RAM: only one heavy job (game/editor/cook) at a time across parallel sessions -> src/tools/heavy_lock.sh. SN2_LOCK_WAIT=<s> waits for it (default: try once).
 bash "$(dirname "$0")/heavy_lock.sh" acquire game --wait "${SN2_LOCK_WAIT:-0}" || { echo "NOT LAUNCHED: heavy lock busy (bash src/tools/heavy_lock.sh status)"; exit 4; }
-# Steam client must be running: without it the game logs "Steam API failed to initialize" (Client API initialized 0), shows the
-# "wasn't launched through the launcher" error and exits (FAILED 2026-11-22, research/01). Refuse instead of burning a launch.
-if ! tasklist 2>/dev/null | grep -qi "^steam.exe"; then echo "NOT LAUNCHED: steam.exe is not running (start Steam and log in first)"; bash "$(dirname "$0")/heavy_lock.sh" release >/dev/null 2>&1; exit 6; fi
+# Steam client must be running and logged in (else the game logs "Steam API failed to initialize" and exits, 2026-11-22): ensure_steam starts it
+# minimized (steam.exe -silent) if needed and waits up to SN2_STEAM_WAIT s (default 90); exit 6 (lock released) if it does not become ready.
+. "$(dirname "$0")/autotest_lib.sh"
+ensure_steam "${SN2_STEAM_WAIT:-90}" || { echo "NOT LAUNCHED: Steam not ready"; bash "$(dirname "$0")/heavy_lock.sh" release >/dev/null 2>&1; exit 6; }
 # steam.exe path: registry HKCU\Software\Valve\Steam\SteamExe, else the path of the running steam.exe process
 STEAMEXE=$(reg query 'HKCU\Software\Valve\Steam' //v SteamExe 2>/dev/null | tr -d '\r' | sed -n 's/^ *SteamExe *REG_SZ *//p')
 if [ -z "$STEAMEXE" ] || ! [ -f "$(cygpath -u "$STEAMEXE" 2>/dev/null)" ]; then
