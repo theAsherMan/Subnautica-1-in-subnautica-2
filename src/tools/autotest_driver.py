@@ -98,6 +98,23 @@ def game_pids():
 def game_hwnd():
     pids = set(game_pids())
     found = []
+    if os.environ.get("SN2_HIDDEN_DESKTOP") == "1":   # game runs on the hidden desktop (src/tools/hidden_desktop.py): enumerate that desktop only
+        user32.OpenDesktopW.restype = wt.HANDLE
+        hd = user32.OpenDesktopW("SN2Test", 0, False, 0x01FF | 0x000F0000)
+        if not hd:
+            return None
+        @ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
+        def cbh(h, _):
+            if user32.IsWindowVisible(h):
+                pid = wt.DWORD(); user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
+                if pid.value in pids:
+                    r = wt.RECT(); user32.GetWindowRect(h, ctypes.byref(r))
+                    found.append(((r.right - r.left) * (r.bottom - r.top), h))
+            return True
+        user32.EnumDesktopWindows(hd, cbh, 0)
+        user32.CloseDesktop(hd)
+        found.sort(reverse=True)
+        return found[0][1] if found else None
     @ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
     def cb(h, _):
         if user32.IsWindowVisible(h):
@@ -219,6 +236,56 @@ def focus(h=None):
     if user32.GetForegroundWindow() != h:
         raise RuntimeError("could not focus the game window")
     return h
+
+class FocusGuard:
+    """engine mode only: the game (and its UE4SS GUI window) activates itself on creation / after map loads and captures the mouse, which
+    steals the user's pointer. A thread polls the foreground window; when it belongs to the game process it gives the foreground back to the
+    last window the user was working in (never the game) and releases ClipCursor. No mouse/keyboard input is sent (no Alt tap). Task 3, 2026-11-22."""
+    def __init__(self, say):
+        import threading
+        self.say = say; self.prev = None; self.stolen = 0; self.restored = 0; self.stop_ev = threading.Event(); self.pids = set(); self.pids_t = 0.0
+        self.samples = 0; self.game_fg_samples = 0
+        self.th = threading.Thread(target=self.loop, daemon=True)
+    def pid_of(self, h):
+        pid = wt.DWORD(); user32.GetWindowThreadProcessId(h, ctypes.byref(pid)); return pid.value
+    def start(self):
+        fg = user32.GetForegroundWindow()
+        if fg and self.pid_of(fg) not in set(game_pids()): self.prev = fg
+        self.say("FOCUS guard start prev_fg=%s class=%r" % (self.prev, _cls(self.prev) if self.prev else None)); self.th.start()
+    def give_back(self, h):
+        fgw = user32.GetForegroundWindow()
+        t1 = user32.GetWindowThreadProcessId(fgw, None); t2 = kernel32.GetCurrentThreadId()
+        user32.AttachThreadInput(t2, t1, True)
+        try:
+            if user32.IsIconic(h): user32.ShowWindow(h, 9)
+            user32.SetForegroundWindow(h)
+        finally:
+            user32.AttachThreadInput(t2, t1, False)
+    def loop(self):
+        while not self.stop_ev.is_set():
+            try:
+                if time.time() - self.pids_t > 2.0:
+                    self.pids = set(game_pids()); self.pids_t = time.time()
+                fg = user32.GetForegroundWindow()
+                if fg and self.pids:
+                    self.samples += 1
+                    if self.pid_of(fg) in self.pids:
+                        self.game_fg_samples += 1; self.stolen += 1
+                        target = self.prev if (self.prev and user32.IsWindow(self.prev)) else user32.FindWindowW("Shell_TrayWnd", None)
+                        if target: self.give_back(target)
+                        user32.ClipCursor(None)
+                        ok = user32.GetForegroundWindow() == target
+                        if ok: self.restored += 1
+                        if self.stolen <= 12 or self.stolen % 20 == 0:
+                            self.say("FOCUS restored hwnd=%s game_fg=%s clip=released (stolen_count=%d, was class=%r)" % (target, not ok, self.stolen, _cls(fg)))
+                    elif self.pid_of(fg) not in self.pids:
+                        self.prev = fg
+            except Exception as e:
+                self.say("FOCUS guard error: %r" % e)
+            self.stop_ev.wait(0.2)
+    def stop(self):
+        self.stop_ev.set()
+        self.say("FOCUS_GUARD summary: samples=%d game_foreground_samples=%d stolen=%d restored=%d" % (self.samples, self.game_fg_samples, self.stolen, self.restored))
 
 class FocusError(RuntimeError):
     pass
@@ -451,10 +518,13 @@ STATE_RX = re.compile(r"STATE world=(\S+) pawn=\(%s,%s,%s\) cam=\(%s,%s,%s\) yaw
 def get_state(timeout=6):
     off = log_size()
     if ENG:
-        send_cmd("state", "", timeout)
+        ok_, _d, txt_ = send_cmd("state", "", timeout)
+        m = STATE_RX.search(txt_) if ok_ else None   # the STATE line is logged before the CMD ok line: no extra log polling
+        if not m:
+            m = wait_log(STATE_RX.pattern, off, 1)
     else:
         combo("ctrl+f11")
-    m = wait_log(STATE_RX.pattern, off, timeout)
+        m = wait_log(STATE_RX.pattern, off, timeout)
     if not m:
         return None
     g = m.groups()
@@ -467,7 +537,7 @@ def wrap(a):
 
 def turn_to(target_yaw, target_pitch, cal, tol=3.0):
     """turn the camera with the mouse until measured yaw/pitch are within tol degrees (up to 4 corrections); returns final state"""
-    st = get_state()
+    st = None if ENG else get_state()
     if ENG:   # closed loop runs inside the game (Enhanced Input injection); verify with the STATE line afterwards
         for _ in range(2):
             line = engine_look(wrap(target_yaw), target_pitch)
@@ -499,7 +569,9 @@ def run_plan(plan_path):
     menu_n = [0]
     first_click_logged = [False]
     pawn_ok = [False]
-    def say(m): print("[driver] " + m, flush=True)
+    def say(m): print("[driver] %s %s" % (time.strftime("%H:%M:%S"), m), flush=True)
+    fguard = FocusGuard(say) if (ENG and os.environ.get("SN2_FOCUSGUARD", "1") != "0") else None
+    if fguard: fguard.start()
     def fallback_close():
         """graceful close without input: engine mode posts WM_CLOSE to the game window (no keys/focus); OS mode presses Alt+F4"""
         if ENG:
@@ -514,6 +586,48 @@ def run_plan(plan_path):
             say("FG %s: no game window" % label); return
         fg = user32.GetForegroundWindow()
         say("FG %s: game_is_foreground=%s minimized=%s foreground_class=%r foreground_title=%r" % (label, fg == h, bool(user32.IsIconic(h)), _cls(fg), _text(fg)[:60]))
+    def input_state():
+        """(game_is_foreground, clip_state, capture_is_game) from Win32: foreground window, GetClipCursor vs virtual screen, hwndCapture of the foreground thread"""
+        pids = set(game_pids()); fg = user32.GetForegroundWindow()
+        pid = wt.DWORD(); user32.GetWindowThreadProcessId(fg, ctypes.byref(pid)) if fg else None
+        fgg = bool(fg) and pid.value in pids
+        r = wt.RECT(); user32.GetClipCursor(ctypes.byref(r))
+        vx, vy, vw, vh = (user32.GetSystemMetrics(i) for i in (76, 77, 78, 79))
+        clip = "released" if (r.left <= vx and r.top <= vy and r.right >= vx + vw and r.bottom >= vy + vh) else "CLIPPED(%d,%d,%d,%d)" % (r.left, r.top, r.right, r.bottom)
+        cap = False
+        try:
+            class GTI(ctypes.Structure):
+                _fields_ = [("cbSize", wt.DWORD), ("flags", wt.DWORD), ("hwndActive", wt.HWND), ("hwndFocus", wt.HWND), ("hwndCapture", wt.HWND),
+                            ("hwndMenuOwner", wt.HWND), ("hwndMoveSize", wt.HWND), ("hwndCaret", wt.HWND), ("rcCaret", wt.RECT)]
+            g = GTI(); g.cbSize = ctypes.sizeof(GTI)
+            if fg and user32.GetGUIThreadInfo(user32.GetWindowThreadProcessId(fg, None), ctypes.byref(g)) and g.hwndCapture:
+                cp = wt.DWORD(); user32.GetWindowThreadProcessId(g.hwndCapture, ctypes.byref(cp)); cap = cp.value in pids
+        except Exception: pass
+        return fgg, clip, cap
+    MOUSEPROBE_ON = ENG and os.environ.get("SN2_MOUSEPROBE", "0") == "1"
+    def mouse_probe(at):
+        """engine mode, opt-in (SN2_MOUSEPROBE=1; user-approved 2026-11-22 for the focus tests): relative mouse MOVE only (no click, no key, no window to front);
+        game must not turn the camera. Cursor position is saved and restored. Logs MOUSEPROBE at= fg_is_game= clip= capture= yaw_before= yaw_after= pass="""
+        if not ENG or not game_pids(): return
+        fgg, clip, cap = input_state()
+        if not MOUSEPROBE_ON:
+            say("EVT at=%s fg_is_game=%s clip=%s capture_is_game=%s" % (at, fgg, clip, cap)); return
+        pt = wt.POINT(); user32.GetCursorPos(ctypes.byref(pt))
+        s0 = get_state(); time.sleep(0.2)
+        for dx, dy in ((300, 0), (300, 0), (0, 200), (0, 200), (-200, 0)):
+            for _ in range(10): mouse_event(dx // 10, dy // 10, MOUSEEVENTF_MOVE); time.sleep(0.01)
+            time.sleep(0.05)
+        time.sleep(0.5)
+        s1 = get_state()
+        user32.SetCursorPos(pt.x, pt.y)
+        fgg2, clip2, cap2 = input_state()
+        if s0 and s1:
+            dyaw = abs(wrap(s1["yaw"] - s0["yaw"])); dp = abs(s1["pitch"] - s0["pitch"]); turned = dyaw > 1.0 or dp > 1.0
+            yb, ya = "%.2f/p%.2f" % (s0["yaw"], s0["pitch"]), "%.2f/p%.2f" % (s1["yaw"], s1["pitch"])
+        else:
+            turned = False; yb = ya = "n/a"
+        ok = (not turned) and (not fgg) and (not fgg2) and clip == "released" and clip2 == "released" and not cap and not cap2
+        say("MOUSEPROBE at=%s fg_is_game=%s clip=%s capture_is_game=%s yaw_before=%s yaw_after=%s pass=%s" % (at, fgg or fgg2, clip2, cap or cap2, yb, ya, ok))
     def fps_probe(label):
         if not ENG: return
         f = engine_fps(2.0)
@@ -544,6 +658,43 @@ def run_plan(plan_path):
     def menu_shot(screen):
         menu_n[0] += 1
         shot(os.path.join(shots_dir, "menu_%02d_%s.png" % (menu_n[0], screen)))
+    def q2_window(i):
+        """hidden-desktop test: an input window. The harness is idle; the REAL mouse is moved (relative moves only, cursor restored);
+        the Lua mod logs 'Q2 ...' every 500 ms while run/q2.txt exists. Status lines go to <Workspace>/autotest/hidden_desktop_status.txt"""
+        spec = os.environ.get("SN2_Q2_WINDOWS")
+        if not spec or not ENG: return
+        try: s_, e_ = spec.split(",")[i].split("-")
+        except IndexError: return
+        def hms(t):
+            lt = time.localtime(); h, m, sec = [int(x) for x in t.split(":")]
+            return time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, h, m, sec, 0, 0, -1))
+        st = os.path.join(os.path.dirname(os.environ["SN2_AUTOTEST_OUT"]), "hidden_desktop_status.txt")
+        def status(t):
+            with open(st, "a") as f: f.write(t + chr(10))
+            say(t)
+        start, end = hms(s_), hms(e_)
+        dur = end - start
+        if time.time() > start:
+            say("Q2 window %d: harness reached it late, slipping to now" % i); start = time.time(); end = start + dur
+        while time.time() < start: time.sleep(0.2)
+        try: shot(os.path.join(shots_dir, "q2_%d_before.png" % i))
+        except Exception as ex: say("Q2 shot before failed: %s" % ex)
+        open(os.path.join(run_dir(), "q2.txt"), "w").write("1")
+        status("INPUT WINDOW OPEN %s" % time.strftime("%H:%M:%S"))
+        pt = wt.POINT(); user32.GetCursorPos(ctypes.byref(pt)); ox, oy = pt.x, pt.y
+        pat = [(15, 0), (0, 15), (-15, 0), (0, -15)]; k = 0
+        try:
+            while time.time() < end:
+                _i = INPUT(type=0); _i.u.mi = MOUSEINPUT(pat[k % 4][0], pat[k % 4][1], 0, 0x0001, 0, 0)   # relative MOVE only (deliberate real-input exception for this test)
+                user32.SendInput(1, ctypes.byref(_i), ctypes.sizeof(INPUT)); k += 1
+                time.sleep(0.4)
+        finally:
+            user32.SetCursorPos(ox, oy)
+            try: os.remove(os.path.join(run_dir(), "q2.txt"))
+            except OSError: pass
+            status("INPUT WINDOW CLOSED")
+        try: shot(os.path.join(shots_dir, "q2_%d_after.png" % i))
+        except Exception as ex: say("Q2 shot after failed: %s" % ex)
     class MenuFail(Exception):
         def __init__(self, screen, what, kind="menu"):
             Exception.__init__(self, "%s %s" % (screen, what)); self.screen, self.what, self.kind = screen, what, kind
@@ -627,16 +778,16 @@ def run_plan(plan_path):
             if k is None:
                 if time.time() - t_known > idle_limit:
                     raise MenuFail(todo[max(last_k, 0)]["screen"], "no known menu screen for %d s (after step %d/%d)" % (idle_limit, last_k + 1, len(todo)), kind)
-                time.sleep(1.0); continue
+                time.sleep(0.25); continue
             t_known = time.time(); idle_limit = 60
             s = todo[k]; e = s["engine"]
             if k == last_k:
-                if time.time() - t_act < e.get("retry_after", 20):
-                    time.sleep(1.0); continue
+                if time.time() - t_act < e.get("retry_after", 1.5):
+                    time.sleep(0.25); continue
                 attempts += 1
-                if attempts >= 3:
-                    raise MenuFail(s["screen"], "screen unchanged after 3 actions (button %r still live)" % e["label"], kind)
-                say("step %s: screen unchanged -> acting again (attempt %d/3)" % (s["screen"], attempts + 1))
+                if attempts >= 10:
+                    raise MenuFail(s["screen"], "screen unchanged after 10 actions (button %r still live)" % e["label"], kind)
+                say("step %s: screen unchanged -> acting again (attempt %d/10)" % (s["screen"], attempts + 1))
             else:
                 skipped = [t["screen"] for t in todo[last_k + 1:k]]
                 if skipped:
@@ -662,7 +813,7 @@ def run_plan(plan_path):
                     time.sleep(0.5)
                 if not done:
                     raise MenuFail(s["screen"], "step end condition not met within %ds" % s.get("poll", 15), kind)
-                say("  step %s done (end condition met)" % s["screen"])
+                say("  step %s done (end condition met)" % s["screen"]); mouse_probe("after_step_" + s["screen"])
                 try: menu_shot(s["screen"])
                 except (FocusError, RuntimeError):
                     if game_pids(): raise
@@ -670,8 +821,9 @@ def run_plan(plan_path):
                     return
                 last_k = k; t_known = time.time(); idle_limit = 120   # the next screen (main menu after a world exit) can take ~30-90 s
                 continue
-            time.sleep(e.get("settle", 3))
-            say("  step %s done" % s["screen"])
+            # no settle wait: the loop head polls (0.25 s) for the next step's own live button and clicks it at once; the same button
+            # still live after retry_after (1.5 s) = ignored click -> click again (cap 10)
+            say("  step %s done" % s["screen"]); mouse_probe("after_step_" + s["screen"])
             try: menu_shot(s["screen"])
             except (FocusError, RuntimeError):
                 if game_pids(): raise
@@ -726,7 +878,7 @@ def run_plan(plan_path):
         # lobby: poll the log line every 1 s; handle the game's modal start-up dialogs (class #32770) on the way
         off = 0
         m = None
-        t_wait_end = time.time() + 180
+        t_wait_end = time.time() + 300
         n_dialogs = 0
         dialog_shot = False
         while time.time() < t_wait_end:
@@ -770,14 +922,16 @@ def run_plan(plan_path):
         # menu ready = lobby WORLD line seen + two captures 1 s apart differ by < 0.5 (menu finished animating in). NO fixed wait.
         t_lobby = time.time()
         if ENG:
-            fg_probe("at_lobby")
+            fg_probe("at_lobby"); mouse_probe("at_lobby")
         else:
             need_focus()
-        t_end = time.time() + 120
-        while True:
-            d = mean_diff(shot_array(), (time.sleep(1.0), shot_array())[1])
-            if d < 0.5 or time.time() > t_end:
-                break
+        d = 0.0
+        if not ENG:   # engine mode needs no frame-diff gate: do_steps_engine polls the live buttons and re-clicks an ignored click
+            t_end = time.time() + 120
+            while True:
+                d = mean_diff(shot_array(), (time.sleep(1.0), shot_array())[1])
+                if d < 0.5 or time.time() > t_end:
+                    break
         if plan.get("worldLevel"):
             if not wait_log(r"\[SN2AutoTest\] worldLevel set", off, 60):
                 say("WARNING worldLevel set line not seen")
@@ -786,6 +940,7 @@ def run_plan(plan_path):
         fps_probe("menu_ready")
         print("[driver] MENU_READY_AT %.3f" % t_ready, flush=True)
         mark = log_size()
+        q2_window(0)
         do_steps(menus["load_game" if plan.get("start") == "load" else "new_game"])
         # world
         if not wait_log(r"\[SN2AutoTest\] PAWN possessed", mark, 240):
@@ -794,38 +949,142 @@ def run_plan(plan_path):
             shot(os.path.join(shots_dir, "00_nopawn.png"))
             print("[driver] RESULT FAIL_NOPAWN"); clean_exit(False); return 1
         pawn_ok[0] = True
-        say("pawn possessed; settle %ss" % plan.get("settleSeconds", 15))
-        time.sleep(plan.get("settleSeconds", 15))
-        fg_probe("ingame"); fps_probe("ingame_after_settle")
-        menu_shot("ingame_first")
+        say("pawn possessed; waiting for readiness (min %ss, max %ss)" % (plan.get("settleMin", 2), plan.get("settleSeconds", 15)))
+        t_pw = time.time(); prev = None; stable_n = 0
+        while time.time() - t_pw < plan.get("settleSeconds", 15):
+            st0 = get_state(3)
+            if st0 and prev and max(abs(a - b) for a, b in zip(st0["pawn"], prev["pawn"])) < 1.0:
+                stable_n += 1
+            else:
+                stable_n = 0
+            prev = st0
+            if stable_n >= 3 and time.time() - t_pw >= plan.get("settleMin", 2):
+                break
+        say("readiness reached after %.1f s (pawn stable x%d)" % (time.time() - t_pw, stable_n))
+        fg_probe("ingame")
+        q2_window(1)
+        _t_ms = time.time(); menu_shot("ingame_first"); say("TIMING menu_shot ingame_first %.1f s" % (time.time() - _t_ms))
         cal = menus["calibration"]
         n = 0
-        for wi, wp in enumerate(plan["waypoints"]):
+        # ---- death handling (generic, every waypoint / look / shot): signal = Lua verb 'death' (WBP_RespawnScreen_C visible + rooted).
+        # The game respawns the pawn at once but the screen stays up (and blocks IA_Look) until CONTINUE (BackButton) is clicked.
+        class WaypointDied(Exception): pass
+        class RespawnFail(Exception): pass
+        gl_path = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Subnautica2", "Saved", "Logs", "Subnautica2.log")
+        gl_off = [os.path.getsize(gl_path) if os.path.exists(gl_path) else 0]
+        deaths = []; died_wps = []
+        DEATH_RX = re.compile(r"Respawning\. Last damage by (\S+)[^\r\n]*?Death Location: X=(-?[\d.]+) Y=(-?[\d.]+) Z=(-?[\d.]+)")
+        def is_dead():
+            ok, d, _ = send_cmd("death", "", 10)
+            return bool(ok) and d == "dead"
+        def death_info():
+            try:
+                with open(gl_path, "rb") as f:
+                    f.seek(gl_off[0]); txt = f.read().decode("utf-8", "replace")
+            except OSError:
+                return None, None
+            ms = DEATH_RX.findall(txt)
+            if len(ms) > len(deaths):
+                m = ms[len(deaths)]
+                return m[0], (float(m[1]), float(m[2]), float(m[3]))
+            return None, None
+        def handle_death(wi, wp):
+            t0 = time.time()
+            cause, pos = death_info()
+            deaths.append((wp["name"], pos, cause))
+            say("DEATH waypoint=%s pos=%s cause=%s" % (wp["name"], ("%.0f,%.0f,%.0f" % pos) if pos else "?", cause or "unknown"))
+            clicked = False; t_click = 0.0
+            while time.time() - t0 < 60:
+                if not clicked or time.time() - t_click > 12:
+                    ok, d, _ = send_cmd("click", "fn:HandleButtonClicked name:BackButton@WBP_RespawnScreen", 15)
+                    say("  CONTINUE click -> ok=%s %s" % (ok, d))
+                    if ok: clicked = True; t_click = time.time()
+                if clicked and not is_dead():
+                    st = get_state()
+                    if st:
+                        say("RESPAWN pos=%.0f,%.0f,%.0f after=%.1f" % (*st["pawn"], time.time() - t0))
+                        return
+                time.sleep(1.0)
+            save_stall(out, "respawn")
+            raise RespawnFail("no respawn within 60 s after the death at %s (clicked=%s)" % (wp["name"], clicked))
+        def chk(wi, wp):
+            if is_dead():
+                raise WaypointDied()
+        def wait_frames(nfr, pawn_still=0.0, label=None):
+            """condition wait: the game has rendered >= nfr more frames (fresh image) and, if pawn_still, the pawn has not moved for that long.
+            label: log 'FPS <label>' from frames/elapsed (free, no extra blocking probe)"""
+            _t_wf = time.time()
+            _r = _wait_frames(nfr, pawn_still)
+            if label and _r:
+                el = max(time.time() - _t_wf, 0.001)
+                say("FPS %s: %.1f (%d frames in %.1f s, wait_frames)" % (label, _r / el, _r, el))
+        def _wait_frames(nfr, pawn_still=0.0):
+            ok0, d0, _ = send_cmd("frame") if ENG else (None, "", "")
+            if not ok0:
+                time.sleep(1.0); return
+            try: f0 = int(d0)
+            except ValueError:
+                time.sleep(1.0); return
+            t0 = time.time(); last_pos = None; still_since = None
+            while time.time() - t0 < 10:
+                ok1, d1, _ = send_cmd("frame")
+                try: adv = int(d1) - f0
+                except ValueError: adv = 0
+                if pawn_still:
+                    st1 = get_state(3)
+                    pos = st1["pawn"] if st1 else None
+                    if pos and last_pos and max(abs(a - b) for a, b in zip(pos, last_pos)) < 1.0:
+                        still_since = still_since or time.time()
+                    else:
+                        still_since = None
+                    last_pos = pos
+                    if adv >= nfr and still_since and time.time() - still_since >= pawn_still:
+                        return adv
+                elif adv >= nfr:
+                    return adv
+                time.sleep(0.1)
+        def do_waypoint(wi, wp):
+            nonlocal n
             if wi < 5:
                 if ENG: send_cmd("teleport", str(wi + 1))
                 else: combo("ctrl+shift+" + "zxcvb"[wi])
-            time.sleep(3.0)
-            fps_probe("waypoint_%s" % wp["name"])
+            wait_frames(10, 0.6)
+            chk(wi, wp)
             st = get_state()
             if wp.get("offset") and st:
                 dx, dy_ = st["lifepod"][0] - st["pawn"][0], st["lifepod"][1] - st["pawn"][1]
                 front = math.degrees(math.atan2(dy_, dx))
             else:
                 front = st["yaw"] if st else 0.0
-            say("waypoint %s front yaw %.1f" % (wp["name"], front))
+            say("waypoint %s front yaw %.1f" % (wp["name"], front)); mouse_probe("waypoint_" + wp["name"])
             for k in range(8):
+                chk(wi, wp)
                 if wi < 5:
                     if ENG: send_cmd("teleport", str(wi + 1))
                     else: combo("ctrl+shift+" + "zxcvb"[wi])
                 st = turn_to(wrap(front + 45 * k), 0.0, cal)
-                time.sleep(3.0 if k == 0 else 0.8)
+                chk(wi, wp)
+                wait_frames(10 if k == 0 else 6, 0.0, ("wp_%s" % wp["name"]) if k == 0 else None)
+                chk(wi, wp)
                 fn = "%02d_%s_k%d.png" % (wi, wp["name"], k)
                 shot(os.path.join(shots_dir, fn))
-                st = get_state() or st or {"pawn": (0, 0, 0), "cam": (0, 0, 0), "yaw": float("nan"), "pitch": float("nan")}
+                st = st or get_state() or {"pawn": (0, 0, 0), "cam": (0, 0, 0), "yaw": float("nan"), "pitch": float("nan")}
                 with open(manifest, "a") as f:
                     f.write("%d\t%s\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%s\n" % (wi, wp["name"], k, st["yaw"], *st["pawn"], *st["cam"], int(time.time()), fn))
                 n += 1
                 print("[driver] SHOT %s yaw=%.1f pitch=%.1f pawn=%s" % (fn, st["yaw"], st["pitch"], st["pawn"]), flush=True)
+        for wi, wp in enumerate(plan["waypoints"]):
+            for attempt in (1, 2):
+                try:
+                    do_waypoint(wi, wp); break
+                except WaypointDied:
+                    handle_death(wi, wp)
+                    if attempt == 2:
+                        died_wps.append(wp["name"])
+                        print("[driver] DIED_WAYPOINT %s (died twice, no further shots there)" % wp["name"], flush=True)
+                    else:
+                        say("retrying waypoint %s once after the respawn" % wp["name"])
+        print("[driver] DEATHS %d RESPAWNS %d DIED_WAYPOINTS %s" % (len(deaths), len(deaths), ",".join(died_wps) or "none"), flush=True)
         say("all shots done: %d" % n)
         # quit through the Escape menu (autotest.sh kills the process after 60 s if this did not end it)
         try:
@@ -837,9 +1096,19 @@ def run_plan(plan_path):
         if game_pids():
             save_stall(out, "quit"); say("QUIT_FAILED game process still running after the quit steps")
             print("[driver] RESULT FAIL_QUIT game still running"); clean_exit(False); return 1
+        if fguard: fguard.stop()
         print("[driver] RESULT DONE"); return 0
     except MenuFail as e:
         reason = "quit" if e.kind == "quit" else "menu"
+        if ENG and game_pids():
+            try:   # evidence for the planner: what the engine sees as visible buttons at the stall
+                with open(os.path.join(out, "buttons_%s.txt" % reason), "w", encoding="utf-8") as bf:
+                    for b in visible_buttons(): bf.write(repr(b) + chr(10))
+                    for lab in ("00h 0", "Continue"):   # FUNCS of the save row and the panel Continue button, for choosing a click method
+                        ok_, d_, t_ = send_cmd("funcs", lab, 20)
+                        bf.write("funcs %r -> ok=%s %s%s" % (lab, ok_, d_, chr(10)))
+                        for fm in re.finditer(r"\[SN2AutoTest\] FUNCS (.*)", t_): bf.write("  " + fm.group(1) + chr(10))
+            except Exception as ex: say("button dump failed: %s" % ex)
         save_stall(out, reason)
         if e.kind == "quit":
             say("QUIT_FAILED %s" % e)
@@ -851,6 +1120,9 @@ def run_plan(plan_path):
         save_stall(out, "focus")
         print("[driver] RESULT FAIL_FOCUS", e); return 3
     except Exception as e:
+        if type(e).__name__ == "RespawnFail":
+            print("[driver] RESULT FAIL_RESPAWN %s" % e, flush=True)
+            clean_exit(False); return 1
         import traceback; traceback.print_exc()
         save_stall(out, "exception")
         print("[driver] RESULT FAIL_EXCEPTION", repr(e), flush=True)

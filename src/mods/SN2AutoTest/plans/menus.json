@@ -47,24 +47,30 @@
  "load_game": [
   {
    "screen": "notice_photosensitivity_continue",
+   "engine": {"label": "name:ContinueBtn@WBP_StartScreen_HealthWarning", "method": "fn:HandleButtonClicked", "settle": 4},
+   "skippable": true,
    "expect": "notice",
    "x": 960,
    "y": 930
   },
   {
    "screen": "title_continue",
+   "engine": {"label": "name:ContinueBtn@WBP_StartScreen_PressStart", "method": "fn:HandleButtonClicked", "settle": 4},
+   "skippable": true,
    "expect": "title",
    "x": 960,
    "y": 930
   },
   {
    "screen": "main_play_single_player",
+   "engine": {"label": "name:PlaySinglePlayerButton@WBP_MainLobbyScreen", "method": "fn:HandleButtonClicked", "settle": 4},
    "expect": "main_menu",
    "x": 775,
    "y": 461
   },
   {
    "screen": "saves_select_savegame_1",
+   "engine": {"label": "name:LoadGameButton@WBP_LoadGameButtonNew", "method": "fn:HandleButtonClicked", "settle": 4},
    "expect": "save_list",
    "x": 1190,
    "y": 545
@@ -84,6 +90,7 @@
   },
   {
    "screen": "load_confirm",
+   "engine": {"label": "name:PlayButton@WBP_LoadGamePanel", "method": "fn:HandleButtonClicked", "poll": 300, "done_log": "WORLD (?!L_ClientLobby)\\w+|PAWN possessed"},
    "expect": "slot_pane",
    "actions": [
     {

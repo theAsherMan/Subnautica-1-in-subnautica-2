@@ -856,6 +856,25 @@ function verbs.screen()
     log("SCREEN " .. table.concat(parts, ","))
     return true, #parts .. " visible viewport widgets"
 end
+-- death screen ("YOU HAVE BEEN REPRINTED"): the pawn is respawned at once by USN2RespawnComponent, but WBP_RespawnScreen_C stays up until CONTINUE
+-- (BackButton) is clicked and blocks look input. Signal = that widget visible + rooted (hidden in normal play: BackButton chainVisible=false).
+function verbs.death()
+    local scr, btn = false, false
+    for _, w in ipairs(findAll("WBP_RespawnScreen_C")) do
+        local vis, rooted = chainVisible(w)
+        if vis and rooted then scr = true end
+    end
+    if scr then
+        for _, b in ipairs(findAll("WBP_GenericButtonBig_C")) do
+            if nameOf(b) == "BackButton" and widgetPath(b):find("WBP_RespawnScreen", 1, true) then
+                local vis, rooted = chainVisible(b)
+                if vis and rooted then btn = true end
+            end
+        end
+    end
+    log(string.format("DEATHCHK screen=%s continueButton=%s pawn=%s", tostring(scr), tostring(btn), tostring(getPawn() ~= nil)))
+    return true, scr and "dead" or "alive"
+end
 -- full dump to run\widgets_<tag>.txt: viewport roots, every visible UserWidget (class + path), buttons with labels, text blocks
 function verbs.widgets(args)
     local tag = (args and args ~= "") and args or "x"
@@ -964,11 +983,11 @@ function verbs.click(args)
     return false, "all methods failed: " .. table.concat(tried, "; ")
 end
 
--- ---------------------------------------------------------------- command poll (250 ms, cheap: one failed io.open when idle)
+-- ---------------------------------------------------------------- command poll (100 ms, cheap: one failed io.open when idle)
 if ENGINE then
     local CMD_FILE = RUN_DIR .. "\\cmd.txt"
     local lastSeq = 0
-    LoopAsync(250, function()
+    LoopAsync(100, function()
         local f = io.open(CMD_FILE, "r")
         if not f then return false end
         local txt = f:read("*l")
@@ -987,7 +1006,30 @@ if ENGINE then
         end)
         return false
     end)
-    log("ENGINE input mode armed: polling " .. CMD_FILE .. " every 250 ms")
+    log("ENGINE input mode armed: polling " .. CMD_FILE .. " every 100 ms")
+end
+
+-- Q2 monitor (hidden-desktop investigation 2026-11-22, passive): while run\q2.txt exists, log every 500 ms
+-- "Q2 <HH:MM:SS> world=.. pawn=(x,y,z) yaw=.. pitch=.." so real input leaking into the game shows up as unexplained changes
+if ENGINE then
+    local Q2_FILE = RUN_DIR .. "\\q2.txt"
+    LoopAsync(500, function()
+        local f = io.open(Q2_FILE, "r")
+        if not f then return false end
+        f:close()
+        ExecuteInGameThread(function()
+            pcall(function()
+                local pc = getPC(); local pawn = getPawn(pc)
+                local px, py, pz = 0, 0, 0
+                if pawn then local l = pawn:K2_GetActorLocation(); px, py, pz = l.X, l.Y, l.Z end
+                local y, p = camRot()
+                local w = "?"
+                if pc then pcall(function() w = pc:GetWorld():GetFName():ToString() end) end
+                log(string.format("Q2 %s world=%s pawn=(%.1f,%.1f,%.1f) yaw=%.2f pitch=%.2f", os.date("%H:%M:%S"), w, px, py, pz, y or 0, p or 0))
+            end)
+        end)
+        return false
+    end)
 end
 
 -- F8 (and probably F9/F10) are bound by the game itself (F8 opens the Feedback panel), so the teleports use Ctrl+Shift+Z/X/C/V/B

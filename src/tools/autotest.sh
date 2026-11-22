@@ -23,8 +23,11 @@ PLANFILE="$SN2_REPO/src/mods/SN2AutoTest/plans/$PLAN.json"
 HL="$SN2_REPO/src/tools/heavy_lock.sh"
 if ! bash "$HL" check; then
   bash "$HL" acquire game --wait "${SN2_LOCK_WAIT:-3600}" --note "autotest $PLAN" || { echo "heavy lock not acquired - abort"; exit 2; }
-  trap 'bash "$HL" release >/dev/null' EXIT
+  HL_TAKEN=1
 fi
+# EXIT trap: record the script's own exit status (OUT/exit_code.txt) and release the lock if taken here; the status is preserved
+on_exit() { rc=$?; [ -n "${OUT:-}" ] && [ -d "$OUT" ] && echo "$rc" > "$OUT/exit_code.txt"; [ -n "${HL_TAKEN:-}" ] && bash "$HL" release >/dev/null 2>&1; exit $rc; }
+trap on_exit EXIT
 if tasklist 2>/dev/null | grep -qi "Subnautica2-Win64"; then echo "game is running - abort"; exit 2; fi
 
 TOOLS="$SN2_REPO/src/tools"
@@ -57,6 +60,11 @@ rm -f "$UE4LOG" 2>/dev/null
   done
 } > "$OUT/marks_before.txt"
 cat "$OUT/marks_before.txt"
+# stop only the python driver process (never match by bare command line text: that also hit powershell itself and any wrapper shell whose command line mentions the script)
+kill_driver() {
+  powershell -NoProfile -c "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { \$_.CommandLine -match 'autotest_driver\.py run' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" >/dev/null 2>&1
+  return 0
+}
 # kill the game only through this helper so a forced kill (which leaves the marks behind = dialog on the next launch) is recorded
 force_kill() {
   if tasklist 2>/dev/null | grep -qi "Subnautica2-Win64"; then
@@ -73,8 +81,13 @@ ls "$SN2_UE4SS_DIR"/crash_*.dmp 2>/dev/null | sort > "$OUT/.dmp_before"
 
 export SN2_AUTOTEST_OUT="$(cygpath -w "$OUT")"
 export SN2_RUN_DIR="$(cygpath -w "$RUN")"
-if [ "$SN2_INPUT" = engine ]; then
-  # windowed launch (PrintWindow needs a normal window); flag names UE 5.6: -windowed -ResX -ResY -WinX -WinY
+if [ "${SN2_HIDDEN:-0}" = 1 ]; then
+  # EXPERIMENT (research/01 "Hidden desktop"): start the Shipping exe directly on the hidden desktop SN2Test (Steam client must be running; no -applaunch)
+  tasklist 2>/dev/null | grep -qi "^steam.exe" || { echo "NOT LAUNCHED: steam.exe is not running"; exit 6; }
+  export SN2_HIDDEN_DESKTOP=1 SN2_FOCUSGUARD=0
+  python "$TOOLS/hidden_desktop.py" launch "$(cygpath -w "$SN2_GAME_DIR/Subnautica2/Binaries/Win64/Subnautica2-Win64-Shipping.exe")" -windowed -ResX=1920 -ResY=1080 -WinX=0 -WinY=0
+elif [ "$SN2_INPUT" = engine ]; then
+  # launched through Steam like Play (launch_game.sh -> steam.exe -applaunch); only DISPLAY args, no start override. Windowed (PrintWindow needs a normal window); flag names UE 5.6: -windowed -ResX -ResY -WinX -WinY
   bash "$TOOLS/launch_game.sh" -windowed -ResX=1920 -ResY=1080 -WinX=0 -WinY=0
 else
   bash "$TOOLS/launch_game.sh"
@@ -101,12 +114,12 @@ while [ -z "$RESULT" ]; do
     NEWC=$(ls "$CRASHDIR" 2>/dev/null | sort | comm -13 "$OUT/.crashes_before" - | wc -l)
     NEWD=$(ls "$SN2_UE4SS_DIR"/crash_*.dmp 2>/dev/null | sort | comm -13 "$OUT/.dmp_before" - | wc -l)
     if [ "$NEWC" -gt 0 ] || [ "$NEWD" -gt 0 ]; then RESULT=CRASH; else RESULT=EXITED; fi
-    kill "$DRV" 2>/dev/null; powershell -NoProfile -c "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -match 'autotest_driver' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" >/dev/null 2>&1
+    kill "$DRV" 2>/dev/null; kill_driver
   elif [ $EL -ge 900 ]; then
     force_kill "TIMEOUT after 900 s"
-    kill "$DRV" 2>/dev/null; powershell -NoProfile -c "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -match 'autotest_driver' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" >/dev/null 2>&1
+    kill "$DRV" 2>/dev/null; kill_driver
     RESULT=TIMEOUT
-  elif [ $SEEN = 0 ] && [ $EL -ge 180 ]; then
+  elif [ $SEEN = 0 ] && [ $EL -ge 300 ]; then
     RESULT=EXITED   # game never started
   fi
 done
@@ -115,7 +128,7 @@ sleep 3
 
 # ---------------------------------------------------------------- always: cleanup + collect
 rm -f "$RUN"/active_plan*.lua
-powershell -NoProfile -c "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -match 'autotest_driver' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" >/dev/null 2>&1
+kill_driver
 cp "$RUN/manifest.tsv" "$OUT/manifest.tsv" 2>/dev/null
 cp "$UE4LOG" "$OUT/UE4SS.log" 2>/dev/null
 cp "$GAMELOG" "$OUT/Subnautica2.log" 2>/dev/null
@@ -145,6 +158,8 @@ fi
   cat "$OUT/forced_kill.txt" 2>/dev/null
   grep -h 'QUIT_FAILED\|RESULT FAIL_\|STALL_ARTEFACTS' "$OUT/driver.log" 2>/dev/null
   for f in "$OUT"/windows_*.txt; do [ -f "$f" ] || continue; R=$(basename "$f" .txt); R=${R#windows_}; echo "== stall artefact '$R': $(basename "$f") + shots/stall_$R.png =="; cat "$f"; done
+  echo "run time: $(( $(date +%s) - T0 )) s"
+  echo "== deaths / respawns =="; grep -h '\] \(DEATH\|RESPAWN\|DIED_WAYPOINT\|DEATHS\) \|DEATH waypoint\|RESPAWN pos\|DIED_WAYPOINT' "$OUT/driver.log" 2>/dev/null | sort -u
   echo "shots expected: $EXPECTED   found: $FOUND   manifest rows: $( [ -f "$OUT/manifest.tsv" ] && echo $(( $(wc -l < "$OUT/manifest.tsv") - 1 )) || echo 0 )"
   echo; echo "== per shot (lum = mean luminance, diff_prev = mean abs diff to previous shot) =="
   cat "$OUT/shot_stats.txt" 2>/dev/null
@@ -162,5 +177,5 @@ fi
 } > "$OUT/summary.txt"
 echo "summary: $OUT/summary.txt"
 head -8 "$OUT/summary.txt"
-[ "$RESULT" = DONE ] && [ "$FOUND" -ge "$EXPECTED" ] && exit 0
+NDIED=$(grep -c "DIED_WAYPOINT" "$OUT/driver.log" 2>/dev/null); [ "$RESULT" = DONE ] && { [ "$FOUND" -ge "$EXPECTED" ] || [ "${NDIED:-0}" -gt 0 ]; } && exit 0
 exit 1

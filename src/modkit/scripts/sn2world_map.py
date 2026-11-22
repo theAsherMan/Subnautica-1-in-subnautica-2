@@ -28,8 +28,10 @@ KEEP = [
     "BP_Ocean_C", "BP_UWEOceanBiomeRegionActor_C", "WaterZone", "BP_UWESky_C", "BP_StaticLifepod_Surface_C",
     "BP_LifePod_Lighting_Surface_C", "BP_LifepodManager_C", "BP_BioBed_Lifepod_C", "BP_Fabricator_Lifepod_C",
     "BP_LifepodWallLocker_C", "BP_ComputerTextInterface_Terminal_Mini_Lifepod_C", "BP_BaseRuntimeManager_C",
-    "BP_MPC_ScalabilityLinker_C", "BP_MeshBlend_Activator_C", "BP_ShallowsPlayerStart_C", "BP_LifepodPlayerStart_C",
-    "BP_CreativeModePlayerStart_C",
+    "BP_MPC_ScalabilityLinker_C", "BP_MeshBlend_Activator_C",
+    # ONLY the Shallows start (2026-11-22): no Deep start in this map, so the game picks among starts whose DefaultForGameModeClass does not match; with Lifepod
+    # (empty data, no RemoveTags/goal) and Creative also present the pick was ambiguous (baseline run applied "lifepod"). Shallows = intro skipped, lifepod spawn.
+    "BP_ShallowsPlayerStart_C",
     "BP_BoxVolume_C",   # ONLY the origin one ("BP_AirVolumeAboveOcean", Air, priority 10, scale 100000); see keep_source()
 ]
 REGION_CLS = "BP_UWEOceanBiomeRegionActor_C"   # copied from L_Main as a STANDALONE actor (see 2026-11-19 fix below)
