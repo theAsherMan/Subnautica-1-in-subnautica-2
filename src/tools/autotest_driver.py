@@ -1085,14 +1085,76 @@ def run_plan(plan_path):
                 elif adv >= nfr:
                     return adv
                 time.sleep(0.1)
-        prev_shot = [None]
+        prev_shot = [None]; views_done = {}
         def do_waypoint(wi, wp):
             nonlocal n
             if wi < 5:
                 if ENG: send_cmd("teleport", str(wi + 1))
                 else: combo("ctrl+shift+" + "zxcvb"[wi])
-            wait_frames(10, 0.6)
+            views = wp.get("views")
+            wait_frames(10, 0.0 if views else 0.6)   # abs views: no "pawn still" wait (a swimming pawn never is, and every second costs oxygen)
             chk(wi, wp)
+            if views == "one":
+                # diagnostic waypoint: probe, shot k0, wait `wait` seconds (death-checked every 5 s, probe every `probeEvery` s), probe, shot k1
+                def _one_shot(k, tag):
+                    wait_frames(6, 0.0)
+                    chk(wi, wp)
+                    if ENG: send_cmd("camlog", "%s_k%d" % (wp["name"], k))
+                    st1 = get_state() or {"pawn": (0, 0, 0), "cam": (0, 0, 0), "yaw": float("nan"), "pitch": float("nan")}
+                    fn1 = "%02d_%s_k%d.png" % (wi, wp["name"], k)
+                    _im1 = shot(os.path.join(shots_dir, fn1))
+                    say("SHOTSIZE %s %dx%d (%s)" % (fn1, _im1.size[0], _im1.size[1], tag))
+                    with open(manifest, "a") as f:
+                        f.write("%d\t%s\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%s\n" % (wi, wp["name"], k, st1["yaw"], *st1["pawn"], *st1["cam"], int(time.time()), fn1))
+                    print("[driver] SHOT %s yaw=%.1f pitch=%.1f pawn=%s" % (fn1, st1["yaw"], st1["pitch"], st1["pawn"]), flush=True)
+                if ENG and wp.get("probe"): send_cmd("sn1probe", "%s_%s_start" % (wp["name"], wp["probe"]), 30)
+                _one_shot(0, "start")
+                _w = float(wp.get("wait", 0)); _t_w = time.time(); _t_p = time.time(); _pe = float(wp.get("probeEvery", 0))
+                while time.time() - _t_w < _w:
+                    time.sleep(1.0)
+                    if int(time.time() - _t_w) % 5 == 0: chk(wi, wp)
+                    if _pe and ENG and wp.get("probe") and time.time() - _t_p >= _pe:
+                        send_cmd("sn1probe", "%s_%s_t%d" % (wp["name"], wp["probe"], int(time.time() - _t_w)), 30); _t_p = time.time()
+                if _w: say("diagnostic wait done: %.0f s" % (time.time() - _t_w))
+                if ENG and wp.get("probe"): send_cmd("sn1probe", "%s_%s_end" % (wp["name"], wp["probe"]), 30)
+                _one_shot(1, "after wait")
+                return
+            def o2():   # test-only oxygen refill (waypoint field "o2": true)
+                if ENG and wp.get("o2"):
+                    ok_o, d_o, _ = send_cmd("o2fill")
+                    if not ok_o: say("O2FILL failed: %s" % d_o)
+            if views in ("abs8ud", "down45"):
+                o2()
+                if ENG and wp.get("fov"):
+                    ok_f, d_f, _ = send_cmd("fov", str(wp["fov"]))
+                    say("FOV request %s -> ok=%s %s" % (wp["fov"], ok_f, d_f))
+                done = views_done.setdefault(wi, set())   # shots survive a death: the retry only takes the missing views
+                if ENG and wp.get("probe") and not done: send_cmd("sn1probe" if wp["probe"] != "env" else "envprobe", "%s_%s_before" % (wp["name"], wp["probe"]), 30)
+                for k in range(2 if views == "down45" else 10):
+                    if k in done: continue
+                    o2()
+                    chk(wi, wp)
+                    if views == "down45": ty, tp = 0.0, (-89.0 if k == 0 else -45.0)
+                    else: ty, tp = (45.0 * k, 0.0) if k < 8 else (0.0, 89.0 if k == 8 else -89.0)
+                    st = turn_to(wrap(ty), tp, cal, tol=1.5)
+                    o2()
+                    chk(wi, wp)
+                    wait_frames(6, 0.0, ("wp_%s" % wp["name"]) if not done else None)
+                    chk(wi, wp)
+                    if ENG: send_cmd("camlog", "%s_k%d" % (wp["name"], k))
+                    st = get_state() or st or {"pawn": (0, 0, 0), "cam": (0, 0, 0), "yaw": float("nan"), "pitch": float("nan")}
+                    eyaw = abs(wrap(ty - st["yaw"])) if (k < 8 or views == "down45") else 0.0; epit = abs(tp - st["pitch"])
+                    say("VIEWERR k%d target yaw=%.1f pitch=%.1f measured yaw=%.2f pitch=%.2f err yaw=%.2f pitch=%.2f cam=(%.0f,%.0f,%.0f) %s" % (
+                        k, ty, tp, st["yaw"], st["pitch"], eyaw, epit, *st["cam"], "OK" if eyaw <= 2.0 and epit <= 2.0 else "OUT_OF_TOLERANCE"))
+                    fn = "%02d_%s_k%d.png" % (wi, wp["name"], k)
+                    _im = shot(os.path.join(shots_dir, fn))
+                    say("SHOTSIZE %s %dx%d" % (fn, _im.size[0], _im.size[1]))
+                    with open(manifest, "a") as f:
+                        f.write("%d\t%s\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%s\n" % (wi, wp["name"], k, st["yaw"], *st["pawn"], *st["cam"], int(time.time()), fn))
+                    done.add(k); n += 1
+                    print("[driver] SHOT %s yaw=%.1f pitch=%.1f pawn=%s" % (fn, st["yaw"], st["pitch"], st["pawn"]), flush=True)
+                if ENG and wp.get("probeAfter"): send_cmd("sn1probe", "%s_%s_after" % (wp["name"], wp["probeAfter"]), 30)
+                return
             st = get_state()
             if wp.get("offset") and st:
                 dx, dy_ = st["lifepod"][0] - st["pawn"][0], st["lifepod"][1] - st["pawn"][1]

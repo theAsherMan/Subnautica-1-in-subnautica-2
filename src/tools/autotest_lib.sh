@@ -102,3 +102,67 @@ stop_game() {
   [ -f "$out/hidden.flag" ] && { sleep 1; kill_holder; }
   return 0
 }
+
+# ---------------------------------------------------------------- test-world cleanup (user rule 2026-11-22: every test deletes the world it created)
+# Saves folder; SN2_SAVEGAMES_DIR overrides it FOR OFFLINE TESTS ONLY (never point it at fake files in the real folder).
+slot_dir() { echo "${SN2_SAVEGAMES_DIR:-$SN2_SAVES_DIR}"; }
+game_running() {   # SN2_FAKE_GAME_RUNNING=1 simulates a running game (offline tests)
+  [ "${SN2_FAKE_GAME_RUNNING:-0}" = 1 ] && return 0
+  tasklist 2>/dev/null | grep -qi "Subnautica2-Win64"
+}
+# file creation time (epoch): birth time where stat supports it (%W > 0), else mtime
+slot_ctime() { local w; w=$(stat -c %W "$1" 2>/dev/null); if [ -n "$w" ] && [ "$w" -gt 0 ] 2>/dev/null; then echo "$w"; else stat -c %Y "$1"; fi; }
+# record_slots_pre <run dir> <start epoch>: slots_pre.txt = "# start_epoch=<n>" then "<name>\t<mtime epoch>\t<size>" per savegame_*.sav / savegame_*_*.bak
+record_slots_pre() {
+  local out="$1" t0="$2" d f; d="$(slot_dir)"
+  { echo "# start_epoch=$t0 savedir=$d"
+    for f in "$d"/savegame_*.sav "$d"/savegame_*_*.bak; do
+      [ -f "$f" ] && printf '%s\t%s\t%s\n' "$(basename "$f")" "$(stat -c %Y "$f")" "$(stat -c %s "$f")"
+    done
+  } > "$out/slots_pre.txt"
+}
+# cleanup_test_slots <run dir> [keep 0|1]: run AFTER the game process has exited. Deletes only savegame_N.sav + savegame_N_*.bak of slots N that had no file in
+# slots_pre.txt AND whose files were created after the run start. Deletes NOTHING (logs SLOT_CLEANUP_SKIPPED <reason>) if the game is running, slots_pre.txt is
+# missing, an existing slot was modified/gained a file, or a "new" slot predates the run start. Never touches non-slot files. Logs to <run>/deleted_slots.txt
+# and appends the line to <run>/slot_cleanup.txt (autotest.sh copies it into summary.txt). Idempotent per run folder (marker .slot_cleanup_done).
+cleanup_test_slots() {
+  local out="$1" keep="${2:-0}" d pre t0 f b n rsn="" new=() pre_slots line
+  [ -f "$out/.slot_cleanup_done" ] && return 0
+  : > "$out/.slot_cleanup_done"
+  d="$(slot_dir)"; pre="$out/slots_pre.txt"
+  say() { echo "$1"; echo "$1" >> "$out/deleted_slots.txt"; echo "$1" >> "$out/slot_cleanup.txt"; }
+  if [ "$keep" = 1 ]; then say "SLOT_CLEANUP_SKIPPED --keep-world given (plan-approved)"; return 0; fi
+  if [ ! -f "$pre" ]; then say "SLOT_CLEANUP_SKIPPED no slots_pre.txt"; return 0; fi
+  if game_running; then say "SLOT_CLEANUP_SKIPPED game still running"; return 0; fi
+  t0=$(sed -n 's/^# start_epoch=\([0-9]*\).*/\1/p' "$pre" | head -1)
+  [ -z "$t0" ] && { say "SLOT_CLEANUP_SKIPPED no start_epoch in slots_pre.txt"; return 0; }
+  # slots known before the run
+  pre_slots=" $(grep -v '^#' "$pre" | cut -f1 | sed -n 's/^savegame_\([0-9]*\)\(_[0-9]*\.bak\|\.sav\)$/\1/p' | sort -u | tr '\n' ' ')"
+  # ambiguity checks: a pre-existing file changed, or a pre-existing slot gained a file
+  while IFS=$'\t' read -r b m s; do
+    case "$b" in '#'*|'') continue;; esac
+    if [ ! -f "$d/$b" ]; then continue; fi
+    if [ "$(stat -c %Y "$d/$b")" != "$m" ] || [ "$(stat -c %s "$d/$b")" != "$s" ]; then rsn="pre-existing file $b was modified during the run"; break; fi
+  done < "$pre"
+  if [ -z "$rsn" ]; then
+    for f in "$d"/savegame_*.sav "$d"/savegame_*_*.bak; do
+      [ -f "$f" ] || continue; b=$(basename "$f")
+      n=$(echo "$b" | sed -n 's/^savegame_\([0-9]*\)\(_[0-9]*\.bak\|\.sav\)$/\1/p'); [ -z "$n" ] && continue
+      if grep -q "^$b	" "$pre"; then continue; fi
+      case "$pre_slots" in *" $n "*) rsn="pre-existing slot $n gained a new file $b"; break;; esac
+      if [ "$(slot_ctime "$f")" -lt "$t0" ]; then rsn="file $b is not in slots_pre.txt but predates the run start"; break; fi
+      case " ${new[*]:-} " in *" $n "*) ;; *) new+=("$n");; esac
+    done
+  fi
+  if [ -n "$rsn" ]; then say "SLOT_CLEANUP_SKIPPED $rsn"; return 0; fi
+  if [ ${#new[@]} -eq 0 ]; then say "SLOT_CLEANUP none (no new slot created)"; return 0; fi
+  for n in "${new[@]}"; do
+    for f in "$d/savegame_${n:?}.sav" "$d"/savegame_"${n:?}"_*.bak; do
+      [ -f "$f" ] || continue
+      case "$(basename "$f")" in savegame_[0-9]*.sav|savegame_[0-9]*_[0-9]*.bak) ;; *) continue;; esac
+      rm -- "${f:?}" && echo "$(date '+%Y-%m-%d %H:%M:%S') deleted $f" >> "$out/deleted_slots.txt"
+    done
+  done
+  say "SLOT_CLEANUP deleted new slot(s): ${new[*]} (details in deleted_slots.txt)"
+  return 0
+}

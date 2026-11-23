@@ -1,0 +1,54 @@
+# Reference shots at the open-water test point (dunes). 10 views + cam info + terrain collider OBJ. See research/11.
+wait menu 300
+cmd newgame creative
+wait ingame 600
+cmd teleport -1245.13 -251.99 209.50
+sleep 2
+wait ingame 120
+cmd pos
+nearpoll 60 30 20
+cmd cam
+cmd dumpterrain 120 spot1_terrain.obj
+cmd pos
+cmd look 0 0
+sleep 1
+cmd shot spot1_yaw000.png
+sleep 0.5
+cmd look 45 0
+sleep 1
+cmd shot spot1_yaw045.png
+sleep 0.5
+cmd look 90 0
+sleep 1
+cmd shot spot1_yaw090.png
+sleep 0.5
+cmd look 135 0
+sleep 1
+cmd shot spot1_yaw135.png
+sleep 0.5
+cmd look 180 0
+sleep 1
+cmd shot spot1_yaw180.png
+sleep 0.5
+cmd look 225 0
+sleep 1
+cmd shot spot1_yaw225.png
+sleep 0.5
+cmd look 270 0
+sleep 1
+cmd shot spot1_yaw270.png
+sleep 0.5
+cmd look 315 0
+sleep 1
+cmd shot spot1_yaw315.png
+sleep 0.5
+cmd look 0 89
+sleep 1
+cmd shot spot1_up.png
+sleep 0.5
+cmd look 0 -89
+sleep 1
+cmd shot spot1_down.png
+sleep 0.5
+cmd pos
+cmd quit

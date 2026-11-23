@@ -12,6 +12,7 @@ Usage:
                                                   (the desktop closes when its last process exits and this tool exits)
   python hidden_desktop.py windows                list windows on the desktop (needs the desktop to exist)
   python hidden_desktop.py shot FILE [PID]        PrintWindow capture of the biggest window on the desktop (or of PID)
+  python hidden_desktop.py close PID              post WM_CLOSE to the windows of PID on the desktop (graceful close); env HD_APPID overrides the Steam appid for launch (default 1962700)
   python hidden_desktop.py --show / --back        manual only: SwitchDesktop to SN2Test / back to the input desktop
 """
 import ctypes, ctypes.wintypes as wt, os, subprocess, sys, time
@@ -189,7 +190,7 @@ def main():
         exe = a[a.index("--exe") + 1] if "--exe" in a else os.path.join(os.environ.get("SystemRoot", "C:" + chr(92) + "Windows"), "System32", "notepad.exe")
         return selftest(exe)
     if a[0] == "launch":
-        os.environ["SteamAppId"] = "1962700"; os.environ["SteamGameId"] = "1962700"   # needed for a direct launch (git b949409)
+        _appid = os.environ.get("HD_APPID", "1962700"); os.environ["SteamAppId"] = _appid; os.environ["SteamGameId"] = _appid   # needed for a direct launch (git b949409)
         # HOLDER: this process owns the desktop handle and must stay alive until the game exits. Exiting right after CreateProcess
         # destroyed the desktop before the game's user32 attached (run 20261122_132101: game never ran). (see research/01).
         h = create_desktop(); pid, hp = launch_on_desktop(a[1:])
@@ -206,6 +207,12 @@ def main():
         ws = [w for w in list_windows(h) if w[5] and (len(a) < 3 or w[1] == int(a[2]))]
         ws.sort(key=lambda w: -(w[4][2] - w[4][0]) * (w[4][3] - w[4][1]))
         print(capture(ws[0][0], a[1])); return 0
+    if a[0] == "close":   # close PID : post WM_CLOSE to every top-level window of that pid on the desktop (graceful close)
+        h = u32.OpenDesktopW(DESK, 0, False, DESKTOP_ALL)
+        n = 0
+        for w in list_windows(h):
+            if w[1] == int(a[1]): u32.PostMessageW(w[0], 0x0010, 0, 0); n += 1
+        print("WM_CLOSE posted to %d windows" % n); return 0
     if a[0] in ("--show", "--back"):
         h = u32.OpenDesktopW(DESK, 0, False, DESKTOP_ALL) if a[0] == "--show" else u32.OpenDesktopW("Default", 0, False, DESKTOP_ALL)
         print("SwitchDesktop:", bool(u32.SwitchDesktop(h))); return 0

@@ -35,7 +35,8 @@ by = {}
 for r in rows:
     by.setdefault((int(r["idx"]), r["waypoint"]), []).append(r)
 for (idx, wp), rs in sorted(by.items()):
-    sheet = Image.new("RGB", (4 * TW, HDR + 2 * (TH + CAP)), (20, 20, 20))
+    nrows = 3 if max(int(x["k"]) for x in rs) >= 8 else 2   # abs8ud waypoints have k0..k9
+    sheet = Image.new("RGB", (4 * TW, HDR + nrows * (TH + CAP)), (20, 20, 20))
     d = ImageDraw.Draw(sheet)
     r0 = rs[0]
     d.text((6, 6), "%s pawn=(%.0f,%.0f,%.0f) plan=%s" % (wp, float(r0["pawnX"]), float(r0["pawnY"]), float(r0["pawnZ"]), plan), fill=(255, 255, 0))

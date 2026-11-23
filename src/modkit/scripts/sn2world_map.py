@@ -17,6 +17,7 @@ Findings baked into this script (2026-11-18, see research/09 "Replacement map L_
    (step 4e: spawned, because EDIT COPY/PASTE skips child actors; transform = our ocean actor + L_Main's offset (0,0,-5e6), scale (1e6,1e6,1e5);
    every property that differs from the class default is copied from L_Main's child actor) and (b) the origin BP_BoxVolume_C air volume
    ("BP_AirVolumeAboveOcean", scale 1e5). check_region() asserts both, in memory and after a reload from disk.
+After a rebuild of this map, re-run src/modkit/scripts/sn1terrain_import.py (it adds the SN1 terrain tile actors; a fresh level has none).
 Run:  python -I src/modkit/tools/ue_run.py src/modkit/scripts/sn2world_map.py       Output lines start with [SN2World].
 """
 import time

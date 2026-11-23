@@ -25,7 +25,7 @@ If it is missing, ask the user for the paths and create it.
   `tools/cook_install.sh <Mod> <ChunkId>`, `tools/launch_editor.sh` (opens the editor; use it instead of double-clicking `Launch-Editor.cmd`), editor add-on source `plugins/SN2GraphTools` (copied into the modkit project). See `research/08_modkit_setup.md`.
 
 ## Parallel sessions: one heavy job at a time
-RAM allows only one of these at a time: the game, the modkit editor, a cook, or the SN1 builder. Several sessions may run at once, so they share the lock `bash src/tools/heavy_lock.sh`.
+RAM allows only one of these at a time: the game, the modkit editor, a cook, Subnautica 1 (any SN1 launch, incl. `sn1_run.sh`), or the SN1 builder / terrain extractor. Several sessions may run at once, so they share the lock `bash src/tools/heavy_lock.sh`.
 - Check `heavy_lock.sh status` before planning heavy work.
 - launch_game / install_mod / launch_editor / ue_run / cook_install / autotest take or require the lock themselves, and refuse with exit 4, 5 or 2 when another session holds it.
 - To wait for the lock, run `heavy_lock.sh acquire <what> --wait <s>` in the background. Do not poll.

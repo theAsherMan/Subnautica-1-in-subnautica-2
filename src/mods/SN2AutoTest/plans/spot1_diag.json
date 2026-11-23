@@ -1,0 +1,35 @@
+{
+ "name": "spot1_diag",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "pod_wait",
+   "views": "one",
+   "probe": "sn1",
+   "wait": 120,
+   "probeEvery": 40
+  },
+  {
+   "name": "seabed_close",
+   "at": [
+    21045,
+    -124547,
+    -26433
+   ],
+   "views": "abs8ud",
+   "probe": "sn1",
+   "probeAfter": "sn1"
+  },
+  {
+   "name": "water_repeat",
+   "at": [
+    20950,
+    -124513,
+    -25199
+   ],
+   "views": "abs8ud"
+  }
+ ],
+ "settleSeconds": 15
+}

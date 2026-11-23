@@ -1,0 +1,9 @@
+# Diagnostic: terrain ChunkCollider mesh data at the open-water point (short run).
+wait menu 300
+cmd newgame creative
+wait ingame 600
+cmd teleport -1245.13 -251.99 209.50
+sleep 2
+wait ingame 120
+cmd chunkinfo
+cmd quit

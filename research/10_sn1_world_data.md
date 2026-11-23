@@ -61,6 +61,7 @@ Missing files mean empty space (solid rock or open water).
   scale: UE(X, Y, Z) = (s.z, s.x, s.y)
   ```
   This is a cyclic permutation, so it keeps handedness. The older `(x, z, y)` mapping in `03` §5 swaps two axes and would mirror the map. It is corrected there.
+- Map offset in `L_SN2World`: (0, 0, 0), i.e. SN1 origin = SN2 origin, SN1 sea level = SN2 ocean surface (decided 2026-11-22, in-game check pending). Import: `03` §3 "Multi-tile SN1 terrain import".
 
 ## 4. Terrain: `.optoctrees` format
 **VERIFIED (2026-11-19, parsed with a throwaway script).** For batch 12-18-12 (Safe Shallows), the parse ended exactly at the file size.
@@ -90,13 +91,13 @@ Results:
 
 The 754-byte file is a fully empty batch: 4 + 125 × (2 + 4) = 754.
 
-Open, UNTESTED. Answer these by decompiling `Assembly-CSharp.dll` (`OctNode`, `VoxelandData`, `CompiledOctreesCache`, `BatchOctreesStreamer`):
-- **Tree order:** the order of the 125 trees in the file (x-, y- or z-major).
-- **Child order:** the order of the 8 children (which bit is x, y, z).
-- **Density encoding:** how the density byte maps to the surface (signed distance around 128? 0 = "no surface info"?) and how type 0 (air/water) interacts with it.
-- **Materials:** type id → material. `blockTypes` / `VoxelandBlockType` lives in a Unity asset, not in `Build18`. Leaf types reach 172, so the 39 `BlockPrefabs` in `meta.txt` are not the full type table.
-- **Mesher:** which mesher SN1 uses, so the look matches. Voxeland uses its own surface extraction with smoothing. Plain marching cubes on the densities is the fallback.
-- **Batch borders:** how neighbouring batches join without seams. Meshing a batch needs a 1-voxel border from its 26 neighbours.
+Answers (decompiled with ilspycmd to `<Workspace>\sn1_decompiled\`: `LargeWorldStreamer` and `Assembly-CSharp-firstpass.dll` types `Int3`, `VoxelandData`, `VoxelandChunk`, `Voxeland`):
+- **Tree order: x*25 + y*5 + z (z fastest).** **VERIFIED (2026-11-22, decompile `Int3.RangeEnumerator.MoveNext` -> `p.Next(mins, maxs)`, z increments first; confirmed by the extractor reproducing the collider surface, see §7).**
+- **Child order:** `child = firstChild + 4*(x>=half) + 2*(y>=half) + 1*(z>=half)`. **VERIFIED (2026-11-22, decompile `Octree.GetNodeId`: `firstChildId + ((x >= halfsize) ? 4 : 0) + ((y >= halfsize) ? 2 : 0) + ((z >= halfsize) ? 1 : 0)`).** `firstChild == 0` = leaf.
+- **Density encoding:** signed distance in voxel units, `(d - 126) / 126` (`VoxelandData` line 170: `((float)(int)d - 126f) / 126f`; inverse `FloorToInt(dist*126)+126`). Positive = inside the solid, surface at d = 126. `IsBelowSurface(type, density)`: `density == 0 ? type > 0 : density >= 126`. So d == 0 means "far from the surface, no distance stored": type > 0 = deep inside, type 0 = open water/air. **VERIFIED (2026-11-22, decompile `VoxelandData.IsBelowSurface`).**
+- **Materials:** type id to material is still unresolved (lives in a Unity asset, not in `Build18`). Leaf types reach 172. The extractor groups faces by `usemtl type_<n>` (type of the inside voxel). Open.
+- **Mesher:** SN1 builds chunk meshes in `VoxelandChunk.BuildMesh/CalculateMesh` (blocky face mesher on the 1 m grid, then vertices moved using the densities, `Relax`, mesh normals). That exact smoothing is NOT ported; the extractor uses surface nets on the same inside/outside + crossing rule (`crossing_s` = `ComputeSurfaceIntersection`: both near: `dIn/(dIn-dOut)`; out far: `dIn`; in far: `1+dOut`; both far: 0.5). The result matches the in-game collider mean 0.03 m (§7), so the density-based placement is right.
+- **Batch borders:** none needed in the data: each batch holds only its own 160 m, and the game voxel grid is global (`voxel index = floor(unity + (2048, 3040, 2048))`). Neighbouring batches are simply decoded into one global array before meshing (done in the extractor, overlapping batches read for the cube plus a 2-voxel margin). Missing batch file or octree = type 0, density 0 (outside). **VERIFIED (2026-11-22, extractor run: no seams at batch borders in the 500 m cube, which spans 4x4x4 batches; the 4,514 border open edges are only the cube's cut boundary, see §7).**
 
 Size: a batch decoded to 1 m arrays is 160³ = 4.1 M voxels × 2 B ≈ 8 MB. Processing one batch at a time keeps RAM small.
 Triangle estimate (UNTESTED): roughly 16.7 km² of seafloor plus caves and islands at 1 m gives tens of millions to about 100 M raw triangles. Meshes must be decimated, and placement relies on Nanite.
@@ -179,6 +180,15 @@ Triangle estimate (UNTESTED): roughly 16.7 km² of seafloor plus caves and islan
 
 ## 7. Extraction pipeline (plan, UNTESTED)
 Rule: **RAM is scarce, time is not.** Every step streams one batch at a time, writes results to disk and keeps nothing large in memory. Long runs (hours) are fine.
+
+### Built 2026-11-22: terrain extractor `src/tools/sn1_extract_terrain.py` (spot cube)
+Usage: `python -I src/tools/sn1_extract_terrain.py --center x y z [--size 500] [--tile 125] [--out <Workspace>/sn1_extract/spot1]` (Unity metres). Pure numpy, no installs. Heavy job: takes the lock (`sn1extract`).
+- **Pipeline:** decode overlapping batches (iterative octree stack) into one global uint8 type + density grid (grid 505^3 incl. 2-voxel margin, ~21.7 s) -> sparse surface nets (one vertex per surface cell = mean of edge crossings from `ComputeSurfaceIntersection`; quads split on the shorter diagonal) -> keep triangles whose centroid is in the cube -> split into x/z tiles by centroid -> one OBJ per tile `tile_<i>_<k>.obj`.
+- **OBJ format:** vertices in UE axes, cm, absolute (`UE.X=100*unity.z, UE.Y=100*unity.x, UE.Z=100*unity.y`); `usemtl type_<n>` groups; winding: numeric (b-a)x(c-a) points out of the solid (front-facing in UE, which is left-handed); seabed normals are +Z by that numeric formula. **Correction (VERIFIED 2026-11-22, `sn1terrain_import.py` NORMAL CHECK):** GeometryScript computes face normals with the opposite sign, so the UE importer MUST emit triangles as `a,d,b` (flipped). With `a,b,d`, seabed normals came out Z -0.97; with `a,d,b` they came out +0.97. This matches research/03 §3. Also writes `summary.json`, `preview_topdown.png`, `preview_section.png`.
+- **Spot1 run** (cube Unity x -1495.47..-995.47, y -517.33..-17.33, z -39.55..460.45; 64 batches 3..6 x 15..18 x 12..15, all present): 567,664 vertices, 1,131,984 triangles meshed, **1,115,977 triangles kept in the cube** across 16 tiles of 125 m (tiles 0_0..3_3 in `<Workspace>/sn1_extract/spot1/`). Run time 39.8 s total (decode 21.7 s, mesh 24.0 s cumulative, rest = OBJ write + Python gap check). Peak RAM well under 2 GB.
+- **Self-checks (VERIFIED 2026-11-22, run output):** spot (-1245.47,-267.33,210.45) is 0.509 m above the extracted surface (ray hit y -267.839), spot voxel outside solid; water point 15.67 m above the surface (hit y -267.661) and outside solid; 4,752 seabed triangles near the spot have mean UE nz 0.864 (92.6 % have nz > 0.5); no NaN vertices. Tile gap check: 1,675,371 edges, 4,765 single-use edges, of which 4,514 lie on the cube's cut border (expected), **251 interior open edges** (not investigated; tiny relative to the mesh, probably crossing-cell degeneracies at 1 voxel overhang spots). Previews (description): top-down height map -387 m (blue, west/left) to -92 m (red, east/right), smooth seabed rising to the east, a dark-blue pit pair left of centre, an elongated light ridge just below the marked spot, speckled small bumps top-right; section at z=210.5 shows flat seabed sloping up to the right with the spot circle 0.5 m over the surface and water circle just above, and one small enclosed void left of centre.
+- **Ground truth VERIFIED (2026-11-22):** `src/tools/sn1_compare_terrain.py <extract_dir> <collider.obj>` against the other agent's in-game raycast heightfield `<Workspace>/reports/sn1_spot1_shots/spot1_terrain.obj` (3,668 vertices, Unity m, all inside the cube): distance to nearest extracted triangle **mean 0.029 m, median 0.017 m, p95 0.092 m, max 0.362 m** (target < 0.5 m). Writes `compare.json`. (The 481k-vertex `spot1_terrain_render.obj` render-piece mesh was not compared; the script loops per point in Python, so subsample it first.)
+- **Open:** type id to material table; SN1's `Relax` smoothing and blocky mesher not ported (surface nets is smoother, same surface within ~0.1 m); the 251 interior open edges; decimation/Nanite size of 1.1 M triangles per 500 m cube is not yet tried in the editor.
 
 **Stage 0: learn the formats (no game run).** Decompile `Assembly-CSharp.dll` with `ilspycmd`, one type at a time (`-t OctNode`, etc.), not the whole dll.
 `ilspycmd` needs `dotnet tool install -g ilspycmd`; the .NET 8 SDK is present. Ask the user before installing.

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Run a plan up to 3 times; retry after a CRASH, and ONCE after FAIL_MENU (harness menu-navigation failure). Any other FAIL is not retried (no waits or delays are added, see research/01 "Automated test runs").
-# Usage: bash src/tools/autotest_retry.sh <plan-name> --timeout <s> [--check <s>] [--visible] [--input os|engine] [--timeout-reason ..] [--after-fix ..]  (options are forwarded to autotest.sh; --timeout is per attempt)
+# Run a plan up to 3 times; retry after a CRASH only. FAIL_MENU is retried once ONLY with --retry-menu (opt-in, off by default). Any other FAIL is not retried (no waits or delays are added, see research/01 "Automated test runs").
+# autotest.sh reclassifies a run as CRASH when a new dump appeared or the game log has a fatal marker, so a crash during a map load is retried as a CRASH.
+# Usage: bash src/tools/autotest_retry.sh <plan-name> --timeout <s> [--check <s>] [--retry-menu] [--visible] [--input os|engine] [--timeout-reason ..] [--after-fix ..]  (options are forwarded to autotest.sh; --timeout is per attempt)
 # (old usage text follows) bash src/tools/autotest_retry.sh <plan-name>      Prints "RETRY_SUMMARY plan attempts=<n> crashes=<c> final=<result>" at the end.
 DIR="$(dirname "$0")"
-ARGS_IN=(); PASS=()
+ARGS_IN=(); PASS=(); RETRY_MENU=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --input) export SN2_INPUT="$2"; shift 2;;
-    --visible|--hidden) PASS+=("$1"); shift;;
+    --retry-menu) RETRY_MENU=1; shift;;
+    --visible|--hidden|--keep-world) PASS+=("$1"); shift;;
     --timeout|--check|--timeout-reason|--after-fix) PASS+=("$1" "$2"); shift 2;;
     *) ARGS_IN+=("$1"); shift;;
   esac
@@ -31,7 +33,7 @@ while [ $ATT -lt 3 ]; do
   LAST=$(ls -d "$SN2_WORKSPACE/autotest/"*_"$PLAN" | tail -1)
   RES=$(cat "$LAST/result.txt"); echo "attempt $ATT: $RES ($LAST)"
   if [ "$RES" = CRASH ]; then CR=$((CR + 1))
-  elif [ "$RES" = FAIL_MENU ] && [ $MF -lt 1 ]; then MF=$((MF + 1)); echo "FAIL_MENU: harness navigation failure, retrying once (stall artefacts: $LAST/windows_menu.txt, $LAST/shots/stall_menu.png)"
+  elif [ "$RES" = FAIL_MENU ] && [ "$RETRY_MENU" = 1 ] && [ $MF -lt 1 ]; then MF=$((MF + 1)); echo "FAIL_MENU: harness navigation failure, retrying once (stall artefacts: $LAST/windows_menu.txt, $LAST/shots/stall_menu.png)"
   elif [ "$RES" = FAIL_LUA_LOAD ]; then echo "FAIL_LUA_LOAD: Lua syntax error in an SN2* mod, not retryable (see $LAST/driver.log)"; break
   else break; fi
 done

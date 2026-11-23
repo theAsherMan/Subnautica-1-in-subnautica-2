@@ -24,3 +24,5 @@ credentials*.json
 secrets*.json
 *.secret
 .claude/settings.local.json
+bin/
+obj/

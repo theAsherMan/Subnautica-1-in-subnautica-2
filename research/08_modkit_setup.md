@@ -146,3 +146,4 @@ to the ModActor graph is the follow-up.
   **without UE4SS**. Example: `TestPluginMod`.
 - Custom materials work only thanks to the custom engine's shader patches.
 - Shipped `Automation\` folder contains a `.usmap` for FModel.
+- SN2EmptyWorld cook with the 16 SN1 terrain tile meshes (1.12 M triangles, Nanite, complex-as-simple), VERIFIED 2026-11-22 (cook log + `retoc.exe list --path --size <utoc>`): incremental cook about 4 min (16:28 to 16:32), `Packages Cooked: 17` (16 SM + map), installed `SN2EmptyWorld.ucas` 123.5 MB, `.utoc` lists `SN1Terrain/SM_spot1_tile_<i>_<k>.uasset` + `.ubulk` for all 16 tiles (about 11 MB uasset + 2-3 MB ubulk each), `L_SN2World.umap` 76.9 KB + `.ubulk` 209 KB, `ModActor.uasset`. `retoc list --path --size` is needed to see asset names (plain `list` shows only chunk ids). Still needs `SN2_ALLOW_ATTACH_ABORTS=1` for the 2 benign BP_Ocean WaterSpline lines. In-game load UNTESTED.

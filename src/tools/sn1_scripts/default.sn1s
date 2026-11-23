@@ -1,0 +1,16 @@
+# SN1 run script. Verbs: wait <state> [timeout_s] | cmd <inspector verb + args> | sleep <s> | hshot <file> | snap
+# cmd shot <file.png> also copies the image into the run's shots/ folder. The run ends after "cmd quit" (harness waits for the exit).
+wait menu 300
+cmd newgame creative
+wait ingame 600
+cmd pos
+cmd biome
+cmd batch
+cmd teleport 0 -50 0
+sleep 2
+wait ingame 120
+cmd pos
+nearpoll 60 30 20
+cmd shot ingame.png
+hshot ingame_hidden.png
+cmd quit

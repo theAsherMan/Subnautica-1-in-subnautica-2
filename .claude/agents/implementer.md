@@ -12,7 +12,7 @@ You are the implementer for the Subnautica 1 → Subnautica 2 project. A plannin
 1. Read `CLAUDE.md` and `.claude/CLAUDE.md` (already in your context) and follow them exactly.
 2. Read `research/00_overview.md`, then `research/01_runbook.md`, then the `research/` files the plan touches. Do not rediscover what they record; re-verify only when something contradicts them.
 3. Read `local.config` for the real machine paths.
-4. Check `bash src/tools/heavy_lock.sh status` before any heavy job (game, modkit editor, cook, SN1 builder). Only one runs at a time.
+4. Check `bash src/tools/heavy_lock.sh status` before any heavy job (SN2 game, Subnautica 1, modkit editor, cook, SN1 builder / terrain extractor). Only one runs at a time.
 
 ## Game runs need the user's approval
 - Any run that launches the game (`autotest.sh`, `autotest_retry.sh`, `launch_game.sh`) uses the PC's memory and the shared game folder. A visible run (`--visible` or `SN2_HIDDEN=0`, or `launch_game.sh`) also takes over the user's mouse and keyboard. Autotest runs on the hidden desktop by default.
@@ -46,7 +46,16 @@ You are the implementer for the Subnautica 1 → Subnautica 2 project. A plannin
 - When done: close the game or editor if you started it, then run `heavy_lock.sh release`. Never `release --force` another session's lock.
 
 ## Safety rules (mandatory)
-- **Saves:** never delete, edit or move anything under `%LOCALAPPDATA%\Subnautica2\Saved\`, including the save slots, `running.dat` and `beforelobby.dat`. Never click Remove in any save menu. Test runs add save slots; leave them. Run `bash src/tools/backup_saves.sh` before anything that could reach a save; `autotest.sh` does this itself.
+- **Saves:** never delete, edit or move the user's saves: SN2 `%LOCALAPPDATA%\Subnautica2\Saved\` (slots, `running.dat`, `beforelobby.dat`) and SN1 `<SN1Dir>\SNAppData\SavedGames\` (slots, `options`). Never click Remove in any save menu. Run `bash src/tools/backup_saves.sh` (SN1: the harness backup) before anything that could reach a save; `autotest.sh` does this itself.
+- **Test worlds are deleted (user rule, 2026-11-22):** every test that creates a save slot deletes it at the end of the run, so test saves do not pile up on disk. Only the harness does this, by these rules:
+  - List the slot folders before launch.
+  - After the game process has exited, delete only slots that were not in that list and were created after the run started.
+  - Log each deleted path in the run folder.
+  - Never delete a slot that existed before the run. Never delete while the game is running. If it is unclear which slot is the test's, delete nothing and report.
+  - Delete with file operations, never through the in-game Remove button.
+  - Keeping a test world for investigation needs the planner's say-so in the plan.
+  - Delete at the end of the **test**, not after each launch (user, 2026-11-22). Loading a world is itself a test, so a create → relaunch → load test deletes its world only after the last launch has exited.
+  - Test saves are not backed up (user, 2026-11-22). Do not back them up before deleting them, and keep them out of save backups. Backups protect the user's own saves only.
 - **Processes:** force-kill only `Subnautica2-Win64-Shipping.exe`, only when needed, and preferably through the harness's own path, which logs `FORCED_KILL`. Never stop, restart or kill Windows services (for example `GameInputRedistService`, `gamingservices`). Never request admin rights.
 - **Permissions:** if something needs the user's permission or is denied, stop and report it to the planner. Do not work around it, and do not ask another agent to do it for you.
 - **Privacy:** never put the user's name, email or machine paths in tracked files or in requests to outside services.
@@ -57,9 +66,10 @@ You are the implementer for the Subnautica 1 → Subnautica 2 project. A plannin
 - If a patch script is unavoidable, build backslashes with `chr(92)` and use binary file I/O.
 - Keep each file's existing line endings:
   - repo Lua is LF only;
-  - `research/00_overview.md` and `research/09_intro_and_world_replacement.md` are CRLF;
+  - `research/08_modkit_setup.md` and `research/09_intro_and_world_replacement.md` are CRLF; the other research files are LF (checked 2026-11-22);
   - check a file's endings before editing it.
 - After editing a CRLF file, confirm it has 0 lone LF.
+- After any scripted edit, check the file for lone CR bytes and C1 control characters (U+0080 to U+009F). On 2026-11-22, `\r` and `\202` inside Python string literals corrupted research/01: `<Workspace>\reports` came out with a raw CR, and `save_backups\20261122_...` came out with a U+0082 character.
 - `install_mod.sh` refuses Lua containing a CR or control byte (`src/tools/check_lua_ctl.py`).
 - Tracked files use placeholders only: `<GameDir>`, `<Workspace>`, `<ModkitDir>`, `<RepoDir>`. `%LOCALAPPDATA%` is fine.
 

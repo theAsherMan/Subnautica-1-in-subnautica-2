@@ -1,0 +1,18 @@
+{
+ "name": "spot1",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "spot1_water",
+   "at": [
+    20950,
+    -124513,
+    -25199
+   ],
+   "views": "abs8ud",
+   "fov": 91.49
+  }
+ ],
+ "settleSeconds": 15
+}

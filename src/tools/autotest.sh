@@ -12,8 +12,9 @@
 #   --visible (or SN2_HIDDEN=0) = old behaviour: game on the user's desktop, launched through Steam.
 # REQUIRED: --timeout <s> (whole run, launch to game exit). Optional: --check <s> (check period, recorded for test_wait.sh),
 #   --timeout-reason "<why>" (needed to raise a timeout after a TIMEOUT), --after-fix "<what>" (needed after two TIMEOUTs in a row),
+#   --keep-world (ONLY when the plan says so: keep the world/save slot the run created; default = the new slot is deleted after the game exited, see cleanup_test_slots in autotest_lib.sh),
 #   --precheck-only (run the refusal checks and exit 0; used by autotest_retry.sh). Exit codes: see autotest_lib.sh.
-ARGS_IN=(); TIMEOUT=""; CHECK=""; T_REASON=""; AFTER_FIX=""; PRECHECK_ONLY=0
+ARGS_IN=(); TIMEOUT=""; CHECK=""; T_REASON=""; AFTER_FIX=""; PRECHECK_ONLY=0; KEEP_WORLD=0
 SN2_HIDDEN="${SN2_HIDDEN:-1}"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -25,6 +26,7 @@ while [ $# -gt 0 ]; do
     --timeout-reason) T_REASON="$2"; shift 2;;
     --after-fix) AFTER_FIX="$2"; shift 2;;
     --precheck-only) PRECHECK_ONLY=1; shift;;
+    --keep-world) KEEP_WORLD=1; shift;;
     *) ARGS_IN+=("$1"); shift;;
   esac
 done
@@ -56,6 +58,8 @@ on_exit() {
       tsv_row "$PLAN" "$TIMEOUT" "${RESULT:-ABORTED_rc$rc}" "$(cur_phase "$OUT")" "$(( $(date +%s) - ${T0:-$(date +%s)} ))" "$OUT" "${STOP_WHY:-}${T_REASON:+ timeout-reason: $T_REASON}${AFTER_FIX:+ after-fix: $AFTER_FIX}"
     fi
   fi
+  # test-world cleanup also on aborted paths (idempotent; skips when the game still runs)
+  [ -n "${OUT:-}" ] && [ -d "$OUT" ] && cleanup_test_slots "$OUT" "$KEEP_WORLD"
   [ -n "${HL_TAKEN:-}" ] && bash "$HL" release >/dev/null 2>&1
   exit $rc
 }
@@ -75,9 +79,10 @@ mkdir -p "$OUT/shots" "$OUT/census" "$OUT/crash"
 T0=$(date +%s)   # the timeout covers the whole run: from here (before install/launch) to game exit
 { echo "plan=$PLAN"; echo "timeout_s=$TIMEOUT"; echo "check_s=${CHECK:-}"; echo "hidden=$SN2_HIDDEN"; echo "start_epoch=$T0"; echo "timeout_reason=$T_REASON"; echo "after_fix=$AFTER_FIX"; } > "$OUT/run_info.txt"
 [ "$SN2_HIDDEN" = 1 ] && : > "$OUT/hidden.flag"
+record_slots_pre "$OUT" "$T0"   # slot names + mtimes + run start, for the end-of-run test-world cleanup
 
 if [ "$SN2_INPUT" = engine ]; then METHOD=engine-printwindow; else METHOD=driver-grab; fi
-EXPECTED=$(python -c "import json,sys;print(len(json.load(open(sys.argv[1]))['waypoints'])*8)" "$(cygpath -w "$PLANFILE")")
+EXPECTED=$(python -c "import json,sys;print(sum(10 if w.get('views')=='abs8ud' else (2 if w.get('views') in ('one','down45') else 8) for w in json.load(open(sys.argv[1]))['waypoints']))" "$(cygpath -w "$PLANFILE")")
 START=$(python -c "import json,sys;print(json.load(open(sys.argv[1])).get('start','new'))" "$(cygpath -w "$PLANFILE")")
 echo "plan=$PLAN input=$SN2_INPUT method=$METHOD expected=$EXPECTED out=$OUT"
 
@@ -110,6 +115,10 @@ force_kill() {
   fi
 }
 MARK="$OUT/.launchmark"; : > "$MARK"
+machine_snap() {   # machine snapshot into $OUT/machine.txt (research/01): RAM, top processes, editor/zen/shader workers/Defender
+  { echo "=== machine snapshot: $1 ==="; powershell -NoProfile -Command "Get-Content -Raw '$(cygpath -w "$TOOLS/machine_snapshot.ps1")' | Invoke-Expression" 2>&1 | tr -d '\r'; echo; } >> "$OUT/machine.txt"
+}
+machine_snap "at launch"
 sleep 1
 ls "$CRASHDIR" 2>/dev/null | sort > "$OUT/.crashes_before"
 ls "$SN2_UE4SS_DIR"/crash_*.dmp 2>/dev/null | sort > "$OUT/.dmp_before"
@@ -172,9 +181,13 @@ while [ -z "$RESULT" ]; do
     RESULT=EXITED   # game never started
   fi
 done
+[ "$RESULT" != DONE ] && machine_snap "at failure (driver result $RESULT)"
 echo "result=$RESULT after $(( $(date +%s) - T0 )) s"
 [ "${SN2_HIDDEN:-0}" = 1 ] && { kill_holder; echo "RUN DONE $RESULT" >> "$(dirname "$OUT")/hidden_desktop_status.txt"; }
 sleep 3
+# test-world cleanup: only after the game process has fully exited (cleanup_test_slots refuses while it runs)
+for i in $(seq 1 10); do game_running || break; sleep 2; done
+cleanup_test_slots "$OUT" "$KEEP_WORLD"; cat "$OUT/slot_cleanup.txt" 2>/dev/null
 
 # ---------------------------------------------------------------- always: cleanup + collect
 rm -f "$RUN"/active_plan*.lua
@@ -189,6 +202,16 @@ for d in $(ls "$CRASHDIR" 2>/dev/null | sort | comm -13 "$OUT/.crashes_before" -
 for f in $(ls "$SN2_UE4SS_DIR"/crash_*.dmp 2>/dev/null | sort | comm -13 "$OUT/.dmp_before" -); do cp "$f" "$OUT/crash/" 2>/dev/null; done
 
 taskkill //IM CrashReportClient.exe //F >/dev/null 2>&1
+# crash classification (research/01): a new dump in the crash folders, or a fatal marker in the game log, makes the verdict CRASH
+# whatever the driver said (a crash during a map load leaves the process alive with no window and used to read as FAIL_MENU)
+CRASH_WHY=""; RESULT_WAS=""
+case "$RESULT" in DONE|STOPPED) ;; *)
+  ND=$(ls "$OUT/crash" 2>/dev/null | wc -l)
+  [ "$ND" -gt 0 ] && CRASH_WHY="new crash artefact(s) in the crash folders: $(ls "$OUT/crash" | tr '\n' ' ')"
+  FL=""; [ "$GAMELOG" -nt "$MARK" ] && FL=$(grep -a -m1 -E 'Spent too much time waiting for FinishDestroy|AbortInsideMemberFunction|Fatal error|LowLevelFatalError' "$OUT/Subnautica2.log" 2>/dev/null | cut -c1-300)
+  [ -n "$FL" ] && CRASH_WHY="${CRASH_WHY:+$CRASH_WHY | }game log: $FL"
+  if [ -n "$CRASH_WHY" ]; then echo "reclassified $RESULT -> CRASH: $CRASH_WHY"; RESULT_WAS="$RESULT"; RESULT=CRASH; fi ;;
+esac
 echo "$RESULT" > "$OUT/result.txt"
 if [ "$SN2_INPUT" = engine ]; then
   mkdir -p "$SN2_WORKSPACE/reports"
@@ -202,11 +225,20 @@ fi
 {
   echo "plan: $PLAN   start: $START   input: $SN2_INPUT   method: $METHOD"
   echo "result: $RESULT"
+  [ -n "$CRASH_WHY" ] && echo "crash reason: $CRASH_WHY (harness/driver verdict was $RESULT_WAS)"
   echo "timeout: ${TIMEOUT} s   check: ${CHECK:-none}   hidden: $SN2_HIDDEN"
   [ -n "$T_REASON" ] && echo "timeout-reason: $T_REASON"
   [ -n "$AFTER_FIX" ] && echo "after-fix: $AFTER_FIX"
   [ -n "${STOP_WHY:-}" ] && echo "stop: $STOP_WHY"
   echo "phase at end: $(cur_phase "$OUT")"
+  echo "== phase timestamps (launch/driver: local time; game log: UTC) =="
+  echo "launch: $(date -d "@$T0" +%H:%M:%S)"
+  grep -ah 'MENU_READY_AT\|FIRST_CLICK_AT' "$OUT/driver.log" 2>/dev/null | while read -r _ k v; do echo "$k: $(date -d "@${v%.*}" +%H:%M:%S 2>/dev/null)"; done
+  echo "game log first line: $(grep -a -m1 . "$OUT/Subnautica2.log" 2>/dev/null | cut -c1-60)"
+  grep -a -E 'LogLoad: LoadMap:|Took .* to LoadMap|BeginTearingDown|UWorld::CleanupWorld|LogGarbage: Warning: Spent' "$OUT/Subnautica2.log" 2>/dev/null | cut -c1-170 | head -16
+  grep -a -E '\[SN2AutoTest\] (WORLD|PAWN possessed)' "$OUT/UE4SS.log" 2>/dev/null | cut -c1-120 | head -8
+  [ -f "$OUT/machine.txt" ] && echo "machine snapshots: machine.txt ($(grep -c '^=== machine' "$OUT/machine.txt") taken)"
+  cat "$OUT/slot_cleanup.txt" 2>/dev/null
   echo "== watchdog marks before launch =="; cat "$OUT/marks_before.txt"
   grep -h 'DIALOG' "$OUT/driver.log" 2>/dev/null
   grep -h '^\[driver\] \(FG\|FPS\) ' "$OUT/driver.log" 2>/dev/null

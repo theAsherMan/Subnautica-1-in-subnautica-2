@@ -138,12 +138,23 @@ RegisterHook("/Script/Engine.PlayerController:ClientRestart", function(ctx)
     end
 end)
 
+local camOffset = nil   -- camera minus pawn location (cm), measured once for absolute ("at") waypoints
 local function teleportTo(n)
     local pawn = getPawn()
     local wp = plan.waypoints[n]
     if not pawn or not wp then log(string.format("TELEPORT %d failed: pawn=%s wp=%s", n, tostring(pawn ~= nil), tostring(wp ~= nil))); return end
     local t
-    if wp.offset then
+    if wp.at then
+        -- absolute UE world position (cm) of the CAMERA: move the pawn by (at - camera offset). The offset (camera minus pawn) is measured
+        -- once, before the first absolute teleport (right after a teleport the camera location is stale for a frame).
+        if not camOffset then
+            local okc, cl = pcall(function() return getPC().PlayerCameraManager:GetCameraLocation() end)
+            local pl = pawn:K2_GetActorLocation()
+            if okc and cl then camOffset = { X = cl.X - pl.X, Y = cl.Y - pl.Y, Z = cl.Z - pl.Z } else camOffset = { X = 0, Y = 0, Z = 0 } end
+            log(string.format("CAMOFFSET camera-pawn=(%.1f,%.1f,%.1f)", camOffset.X, camOffset.Y, camOffset.Z))
+        end
+        t = { X = wp.at[1] - camOffset.X, Y = wp.at[2] - camOffset.Y, Z = wp.at[3] - camOffset.Z }
+    elseif wp.offset then
         local pod = podLocation() or spawnLoc
         if not pod then log("TELEPORT " .. n .. " failed: no lifepod/spawn"); return end
         t = { X = pod.X + wp.offset[1], Y = pod.Y + wp.offset[2], Z = pod.Z + wp.offset[3] }
@@ -716,11 +727,311 @@ end
 -- ---------------------------------------------------------------- misc verbs
 function verbs.state() logState(); return true, "" end
 function verbs.teleport(args) teleportTo(tonumber(args) or 0); return true, "" end
+
+-- TEST ONLY: horizontal field of view for the shots. Tries PlayerCameraManager.LockedFOV (overrides the view FOV), DefaultFOV, SetFOV(), and every
+-- CameraComponent's FieldOfView; logs FOVSET with what worked and the resulting GetFOVAngle. Verb 'fov 91.49'.
+function verbs.fov(args)
+    local v = tonumber(args)
+    if not v then return false, "usage: fov DEGREES" end
+    local pc = getPC()
+    if not pc then return false, "no pc" end
+    local pcm = pc.PlayerCameraManager
+    local worked = {}
+    local before = "?"
+    pcall(function() before = string.format("%.2f", pcm:GetFOVAngle()) end)
+    if pcall(function() pcm.LockedFOV = v end) then worked[#worked + 1] = "LockedFOV" end
+    if pcall(function() pcm.DefaultFOV = v end) then worked[#worked + 1] = "DefaultFOV" end
+    if pcall(function() pcm:SetFOV(v) end) then worked[#worked + 1] = "SetFOV" end
+    local nc = 0
+    for _, c in ipairs(findAll("CameraComponent")) do
+        if isValid(c) and pcall(function() c.FieldOfView = v end) then nc = nc + 1 end
+    end
+    if nc > 0 then worked[#worked + 1] = "CameraComponent x" .. nc end
+    local after = "?"
+    pcall(function() after = string.format("%.2f", pcm:GetFOVAngle()) end)
+    log(string.format("FOVSET target=%.2f before=%s after=%s via=%s", v, before, after, table.concat(worked, ",")))
+    return true, string.format("after=%s", after)
+end
+
+-- Per-shot camera log: camera location, camera rotation, control rotation, FOV angle. The driver calls it before every shot ('camlog LABEL').
+function verbs.camlog(args)
+    local pc = getPC()
+    if not pc then return false, "no pc" end
+    local pcm = pc.PlayerCameraManager
+    local cl, cr, ctl, fv = "?", "?", "?", "?"
+    pcall(function() local l = pcm:GetCameraLocation(); cl = string.format("%.1f,%.1f,%.1f", l.X, l.Y, l.Z) end)
+    pcall(function() local r = pcm:GetCameraRotation(); cr = string.format("p%.2f,y%.2f", r.Pitch, r.Yaw) end)
+    pcall(function() local r = pc:GetControlRotation(); ctl = string.format("p%.2f,y%.2f", r.Pitch, r.Yaw) end)
+    pcall(function() fv = string.format("%.2f", pcm:GetFOVAngle()) end)
+    log(string.format("CAMLOG %s camloc=(%s) camrot=%s ctlrot=%s fov=%s", tostring(args), cl, cr, ctl, fv))
+    return true, ""
+end
 function verbs.frame()
     local n = -1
     pcall(function() n = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary"):GetFrameCount() end)
     log(string.format("FRAME %d", n))
     return true, tostring(n)
+end
+-- DIAGNOSTIC (test only, read-only): 'sn1probe LABEL' - are the SN1 terrain tile actors in the loaded world, are they visible, what is under the camera,
+-- and how many shaders does the HUD still say it is compiling. One log line per item, every call in its own pcall. Plan waypoint fields
+-- "probe": "sn1" (before the shots) and "probeAfter": "sn1" (after) call it.
+function verbs.sn1probe(args)
+    local label = tostring(args ~= "" and args or "probe")
+    local function P(s) log("SN1PROBE " .. label .. " " .. s) end
+    local function tagHas(a, want)
+        local found = false
+        pcall(function()
+            local tags = a.Tags
+            local n = tags:GetArrayNum()
+            for i = 1, n do
+                local okT, s = pcall(function() return tags[i]:ToString() end)
+                if okT and s == want then found = true end
+            end
+        end)
+        return found
+    end
+    -- 1. shader count (HUD text) + a couple of cvars
+    local shaderTxt = "none"
+    pcall(function()
+        for _, cls in ipairs({ "CommonTextBlock", "TextBlock", "RichTextBlock" }) do
+            for _, tb in ipairs(findAll(cls)) do
+                local t = "?"
+                pcall(function() t = tb:GetText():ToString() end)
+                if type(t) == "string" and t:lower():find("shaders", 1, true) then
+                    shaderTxt = string.format("%s|%s", nameOf(tb), (t:gsub("[\r\n\t]", " ")))
+                    return
+                end
+            end
+        end
+    end)
+    P("SHADERTEXT " .. shaderTxt)
+    local ksl = nil
+    pcall(function() ksl = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary") end)
+    for _, cv in ipairs({ "r.Nanite", "r.PSOPrecaching", "r.ShaderPipelineCache.Enabled" }) do
+        local v = "?"
+        pcall(function() v = tostring(ksl:GetConsoleVariableIntValue(cv)) end)
+        P("CVAR " .. cv .. "=" .. v)
+    end
+    -- 2. tile actors
+    local all, tagged = 0, 0
+    local okA, errA = pcall(function()
+        for _, a in ipairs(findAll("StaticMeshActor")) do
+            all = all + 1
+            local nm = nameOf(a)
+            if tagHas(a, "SN1Terrain") or nm:find("spot1_tile", 1, true) then
+                tagged = tagged + 1
+                local loc, hid, mesh, mat, vis, hig, col, reg = "?", "?", "nil", "nil", "?", "?", "?", "?"
+                local comp = nil
+                pcall(function() comp = a.StaticMeshComponent end)
+                pcall(function() local l = a:K2_GetActorLocation(); loc = string.format("%.0f,%.0f,%.0f", l.X, l.Y, l.Z) end)
+                pcall(function() hid = tostring(a.bHidden) end)
+                if isValid(comp) then
+                    pcall(function() mesh = comp.StaticMesh:GetFullName() end)
+                    pcall(function() mat = comp:GetMaterial(0):GetFullName() end)
+                    pcall(function() vis = tostring(comp:IsVisible()) end)
+                    pcall(function() hig = tostring(comp.bHiddenInGame) end)
+                    pcall(function() col = tostring(comp:GetCollisionEnabled()) end)
+                    pcall(function() reg = tostring(comp:IsRegistered()) end)
+                else
+                    mesh = "NOCOMP"
+                end
+                P(string.format("TILE %s loc=(%s) bHidden=%s mesh=%s mat=%s isVisible=%s hiddenInGame=%s collision=%s registered=%s", nm, loc, hid, mesh, mat, vis, hig, col, reg))
+            end
+        end
+    end)
+    if not okA then P("TILE scan error " .. shortErr(errA)) end
+    P(string.format("COUNT staticMeshActors=%d tagged_or_named=%d", all, tagged))
+    -- 3. line trace straight down 40 m from the camera
+    pcall(function()
+        local pc = getPC()
+        local cl = pc.PlayerCameraManager:GetCameraLocation()
+        local hit = {}
+        local pawn = getPawn(pc)
+        local hitAny = ksl:LineTraceSingle(pawn, { X = cl.X, Y = cl.Y, Z = cl.Z }, { X = cl.X, Y = cl.Y, Z = cl.Z - 4000 }, 0, true, {}, 0, hit, true,
+            { R = 0, G = 0, B = 0, A = 0 }, { R = 0, G = 0, B = 0, A = 0 }, 0)
+        local comp = nil
+        pcall(function() comp = hit.Component:Get() end)
+        if not isValid(comp) then pcall(function() comp = hit.HitObjectHandle.ReferenceObject:Get() end) end
+        if not isValid(comp) then pcall(function() comp = hit.Component end) end
+        if hitAny and isValid(comp) then
+            local oname, z, dist, ip = "?", "?", "?", "?"
+            pcall(function() oname = comp:GetOwner():GetFName():ToString() end)
+            pcall(function() z = string.format("%.1f", hit.ImpactPoint.Z) end)
+            pcall(function() ip = string.format("%.0f,%.0f,%.0f", hit.ImpactPoint.X, hit.ImpactPoint.Y, hit.ImpactPoint.Z) end)
+            pcall(function() dist = string.format("%.1f", hit.Distance) end)
+            P(string.format("TRACE cam=(%.0f,%.0f,%.0f) HIT owner=%s comp=%s impact=(%s) dist=%s", cl.X, cl.Y, cl.Z, oname, comp:GetFullName(), ip, dist))
+        else
+            P(string.format("TRACE cam=(%.0f,%.0f,%.0f) NOHIT ret=%s", cl.X, cl.Y, cl.Z, tostring(hitAny)))
+        end
+    end)
+    return true, string.format("tiles=%d/%d shader=%s", tagged, all, shaderTxt)
+end
+-- ---------------------------------------------------------------- test-only oxygen refill + environment probe (2026-11-22)
+-- Numeric GAS attributes of the player pawn: list of { set=<attribute set>, name=<property>, data=<FGameplayAttributeData>, cur=, base= }.
+local function pawnAttrs()
+    local out = {}
+    local pawn = getPawn()
+    if not pawn then return out, "no pawn" end
+    local asc = nil
+    for _, pn in ipairs({ "UWEAbilitySystemComponent", "AbilitySystemComponent" }) do
+        if not isValid(asc) then pcall(function() asc = pawn[pn] end) end
+    end
+    if not isValid(asc) then pcall(function() asc = pawn:GetAbilitySystemComponent() end) end
+    if not isValid(asc) then return out, "no ASC" end
+    local sets = {}
+    pcall(function() sets = toList(asc.SpawnedAttributes) end)
+    for _, s in ipairs(sets) do
+        if isValid(s) then
+            pcall(function()
+                s:GetClass():ForEachProperty(function(p)
+                    local pname = "?"
+                    pcall(function() pname = p:GetFName():ToString() end)
+                    local okd, d = pcall(function() return s[pname] end)
+                    if okd and type(d) == "userdata" then
+                        local cur, base
+                        pcall(function() cur = d.CurrentValue end)
+                        pcall(function() base = d.BaseValue end)
+                        if type(cur) == "number" then out[#out + 1] = { set = s, name = pname, data = d, cur = cur, base = base } end
+                    end
+                end)
+            end)
+        end
+    end
+    return out, "asc=" .. nameOf(asc) .. " sets=" .. #sets
+end
+local o2calls = 0
+local o2cheatCalled = false
+function verbs.o2fill(args)
+    o2calls = o2calls + 1
+    local verbose = o2calls <= 2
+    local okAny, msgs = false, {}
+    -- method 1: the game's own cheat manager function SN2CheatManager:Oxygen()
+    local cm = nil
+    pcall(function() local c = FindFirstOf("SN2CheatManager"); if isValid(c) then cm = c end end)
+    if not cm then pcall(function() local c = getPC().CheatManager; if isValid(c) then cm = c end end) end
+    if cm and o2cheatCalled then
+        msgs[#msgs + 1] = "cheat=already toggled once (Oxygen() is a TOGGLE: HUD shows 'Oxygen cheat enabled/disabled')"
+    elseif cm then
+        o2cheatCalled = true
+        local ok, err = pcall(function() cm:Oxygen() end)
+        msgs[#msgs + 1] = "cheat=" .. (ok and "called" or shortErr(err))
+        if ok then okAny = true end
+    else
+        msgs[#msgs + 1] = "cheat=no SN2CheatManager instance"
+    end
+    -- method 2: set the oxygen attribute's CurrentValue to its maximum
+    local attrs, why = pawnAttrs()
+    local oxy, maxv = nil, nil
+    for _, a in ipairs(attrs) do
+        local l = a.name:lower()
+        if l == "maxoxygen" then maxv = a elseif l == "oxygen" then oxy = a end
+        if verbose then log(string.format("O2ATTR %s set=%s cur=%s base=%s", a.name, nameOf(a.set), tostring(a.cur), tostring(a.base))) end
+    end
+    if oxy then
+        local target = (maxv and maxv.cur) or oxy.base or oxy.cur
+        local before = oxy.cur
+        local ok, err = pcall(function() oxy.data.CurrentValue = target; oxy.data.BaseValue = target end)
+        local after = nil
+        pcall(function() after = oxy.data.CurrentValue end)
+        msgs[#msgs + 1] = string.format("attr=%s %s %s->%s target=%s", oxy.name, ok and "set" or shortErr(err), tostring(before), tostring(after), tostring(target))
+        if ok then okAny = true end
+    else
+        msgs[#msgs + 1] = "attr=no oxygen attribute (" .. tostring(why) .. ", numeric attrs=" .. #attrs .. ")"
+    end
+    local m = table.concat(msgs, " | ")
+    if verbose or not okAny then log("O2FILL " .. m) end
+    return okAny, m
+end
+-- fallback for the driver: back to the pod start (surface air)
+function verbs.podtp()
+    local pawn = getPawn()
+    local t = spawnLoc
+    if not pawn or not t then return false, "no pawn or spawn" end
+    local ok, err = pcall(function() pawn:K2_SetActorLocation({ X = t.X, Y = t.Y, Z = t.Z }, false, {}, true) end)
+    return ok, ok and "ok" or shortErr(err)
+end
+-- Read-only: biome regions, water light settings, height fog, post-process volumes, attributes. Label = args.
+function verbs.envprobe(args)
+    local label = tostring(args ~= "" and args or "env")
+    local function P(s) log("ENVPROBE " .. label .. " " .. s) end
+    local function rd(o, names)
+        local parts = {}
+        for _, n in ipairs(names) do
+            local v = "?"
+            pcall(function()
+                local x = o[n]
+                if type(x) == "userdata" then
+                    local r = nil
+                    pcall(function() r = string.format("(%.3g,%.3g,%.3g,%.3g)", x.R, x.G, x.B, x.A) end)
+                    if not r then pcall(function() r = string.format("(%.3g,%.3g,%.3g)", x.X, x.Y, x.Z) end) end
+                    v = r or str(x)
+                else v = tostring(x) end
+            end)
+            parts[#parts + 1] = n .. "=" .. v
+        end
+        return table.concat(parts, " ")
+    end
+    local pc = getPC()
+    local pawn = getPawn(pc)
+    local cl = nil
+    pcall(function() cl = pc.PlayerCameraManager:GetCameraLocation() end)
+    if cl then P(string.format("CAM (%.0f,%.0f,%.0f)", cl.X, cl.Y, cl.Z)) end
+    if pawn then pcall(function() P("PHYSVOL " .. volStr(pawn:GetPhysicsVolume())) end) end
+    -- biome regions
+    local nreg = 0
+    for _, cn in ipairs({ "BP_UWEOceanBiomeRegionActor_C", "BP_UWEWaterBiomeRegionActor_C" }) do
+        for _, a in ipairs(findAll(cn)) do
+            nreg = nreg + 1
+            local loc, ext, inside = "?", "?", "?"
+            pcall(function() loc = fmtV(a:K2_GetActorLocation()) end)
+            pcall(function()
+                local o, ex = {}, {}
+                a:GetActorBounds(false, o, ex)
+                ext = fmtV(ex)
+                if cl then inside = tostring(math.abs(cl.X - o.X) <= ex.X and math.abs(cl.Y - o.Y) <= ex.Y and math.abs(cl.Z - o.Z) <= ex.Z) end
+            end)
+            local da = "?"
+            pcall(function() da = str(a.BiomeData) end)
+            P(string.format("REGION %s class=%s loc=(%s) boundsExtent=(%s) cameraInBounds=%s bIsOcean=%s BiomeData=%s", nameOf(a), cn, loc, ext, inside, tostring(try(function() return a.bIsOcean end)), da))
+            pcall(function()
+                local bvc = a.BiomeVolumeComponent
+                local wls = bvc.WaterLightSettings
+                P("REGION " .. nameOf(a) .. " WLS " .. rd(wls, { "WaterFogDistance", "WaterFogThickness", "WaterFogBaseThickness", "WaterFogOpacityWeight", "BiomeExtinction", "BiomeExtinctionSkylight", "BiomeNeutralColor", "BiomeAlbedo", "BiomeNeutralStrengthNear", "BiomeNeutralStrengthFar", "BiomeBlendDistance" }))
+            end)
+        end
+    end
+    P("REGIONS " .. nreg)
+    pcall(function()
+        for _, oc in ipairs(findAll("BP_Ocean_C")) do
+            P("OCEAN " .. nameOf(oc) .. " " .. rd(oc, { "WaterLinePPMThreshold", "PPUnderwaterBlur" }))
+            pcall(function() P("OCEAN WaterLightingSettings " .. rd(oc.WaterLightingSettings, { "WaterFogDistance", "WaterFogThickness", "WaterFogBaseThickness", "WaterFogOpacityWeight", "BiomeExtinction", "BiomeAlbedo" })) end)
+        end
+    end)
+    -- height fog components
+    local nf = 0
+    for _, f in ipairs(findAll("ExponentialHeightFogComponent")) do
+        nf = nf + 1
+        local own = "?"
+        pcall(function() own = f:GetOwner():GetFName():ToString() end)
+        P(string.format("HEIGHTFOG owner=%s %s", own, rd(f, { "FogDensity", "FogHeightFalloff", "StartDistance", "FogMaxOpacity", "FogCutoffDistance", "bEnableVolumetricFog", "VolumetricFogDistance" })))
+    end
+    P("HEIGHTFOG count " .. nf)
+    local npp, nunb = 0, 0
+    for _, v in ipairs(findAll("PostProcessVolume")) do
+        npp = npp + 1
+        if try(function() return v.bUnbound end) == true then nunb = nunb + 1 end
+    end
+    P(string.format("POSTPROCESSVOLUMES count=%d unbound=%d", npp, nunb))
+    local fogs = findAll("BP_Fog_Sphere_C")
+    P("FOGSPHERES count=" .. #fogs)
+    -- numeric attributes of the pawn (to find oxygen)
+    local attrs, why = pawnAttrs()
+    P("ATTRS " .. tostring(why) .. " numeric=" .. #attrs)
+    for i, a in ipairs(attrs) do
+        if i > 80 then break end
+        P(string.format("ATTR %s.%s cur=%s base=%s", nameOf(a.set), a.name, tostring(a.cur), tostring(a.base)))
+    end
+    return true, string.format("regions=%d fog=%d pp=%d attrs=%d", nreg, nf, npp, #attrs)
 end
 -- DIAGNOSTIC (engine mode only, exploration): run run\<FILE>.lua in the game thread with the mod helpers in scope; its return value is logged.
 -- Lets an input-injection experiment be changed without relaunching the game (UE4SS reads the mod Lua only at launch).

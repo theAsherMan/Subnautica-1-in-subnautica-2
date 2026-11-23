@@ -1,0 +1,13 @@
+{
+ "name": "spot1_vis",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "open_water", "at": [20950, -124513, -25199], "views": "abs8ud", "fov": 91.49, "o2": true},
+  {"name": "column_h2", "at": [21045, -124547, -26584], "views": "down45", "o2": true, "probe": "env"},
+  {"name": "column_h5", "at": [21045, -124547, -26284], "views": "down45", "o2": true},
+  {"name": "column_h10", "at": [21045, -124547, -25784], "views": "down45", "o2": true},
+  {"name": "column_h16", "at": [21045, -124547, -25184], "views": "down45", "o2": true}
+ ],
+ "settleSeconds": 15
+}
