@@ -1,0 +1,54 @@
+{
+ "name": "sn1cmp_shallows_env",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "shallow_ravine",
+   "at": [
+    4190,
+    10850,
+    -4971
+   ],
+   "views": "fixed",
+   "yaw": -97.76,
+   "pitch": 1.99,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "envprobe",
+   "cmdWait": 3
+  },
+  {
+   "name": "small_hill",
+   "at": [
+    -11511,
+    -2871,
+    -213
+   ],
+   "views": "fixed",
+   "yaw": 147.49,
+   "pitch": -31.65,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "envprobe",
+   "cmdWait": 3
+  },
+  {
+   "name": "natures_table",
+   "at": [
+    8376,
+    -14108,
+    -1095
+   ],
+   "views": "fixed",
+   "yaw": 155.36,
+   "pitch": 5.47,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "envprobe",
+   "cmdWait": 3
+  }
+ ],
+ "settleSeconds": 15,
+ "_note": "Diagnostic (2026-11-26): sn1cmp_shallows + ENVPROBE at each view - are the SN1Biome regions present at runtime, camera inside which region, runtime WaterLightSettings"
+}

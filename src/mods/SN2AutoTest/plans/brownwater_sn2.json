@@ -1,0 +1,11 @@
+{
+ "name": "brownwater_sn2",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "shallow_ravine", "at": [4190, 10850, -4971], "views": "fixed", "yaw": -97.76, "pitch": 1.99, "fov": 91.49, "o2": true, "cmdAfter": "watersys", "cmdWait": 3},
+  {"name": "small_hill", "at": [-11511, -2871, -213], "views": "fixed", "yaw": 147.49, "pitch": -31.65, "fov": 91.49, "o2": true, "cmdAfter": "watersys", "cmdWait": 3}
+ ],
+ "settleSeconds": 15,
+ "_note": "Diagnostic 2026-11-26 brownwater: watersys + envprobe at two views in L_SN2World"
+}

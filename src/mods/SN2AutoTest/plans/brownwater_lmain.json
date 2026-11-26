@@ -1,0 +1,40 @@
+{
+ "name": "brownwater_lmain",
+ "worldLevel": "/Game/Maps/Main/L_Main",
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "pod_underwater_side",
+   "offset": [
+    1500,
+    0,
+    -300
+   ],
+   "views": "fixed",
+   "yaw": 0,
+   "pitch": 0,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "watersys",
+   "cmdWait": 3
+  },
+  {
+   "name": "pod_deep_below",
+   "offset": [
+    0,
+    0,
+    -5000
+   ],
+   "views": "fixed",
+   "yaw": 0,
+   "pitch": 0,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "watersys",
+   "cmdWait": 3
+  }
+ ],
+ "settleSeconds": 15,
+ "_note": "Diagnostic 2026-11-26 brownwater: same probes in stock L_Main",
+ "autoPioneer": true
+}
