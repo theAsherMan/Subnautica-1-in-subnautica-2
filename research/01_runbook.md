@@ -12,7 +12,7 @@
 5. The tester loads the save and presses keys; you read results from the log and ask the tester what is visible. The log proves calls ran, only the tester can confirm visuals/physics.
 
 ## Parallel sessions: the heavy lock (`src/tools/heavy_lock.sh`, built 2026-11-19)
-RAM fits only one heavy job at a time, so several Claude sessions share a single lock. Heavy jobs are the game, the modkit editor, a cook, Subnautica 1 (any SN1 launch; `sn1_run.sh` takes the lock as `sn1`; user rule 2026-11-22), and the SN1 builder / terrain extractor.
+RAM fits only one heavy job at a time, so several Claude sessions share a single lock. Which jobs are heavy is listed in `CLAUDE.md` "Parallel sessions: one heavy job at a time" (the single source of truth; changing it also means updating `SN2_HEAVY_PROCS` in `heavy_lock.sh`). SN1 launches were added by user rule 2026-11-22; `sn1_run.sh` takes the lock as `sn1`.
 - **Commands:**
   - `bash src/tools/heavy_lock.sh status` shows the holder, the running heavy processes and a verdict (FREE / HELD / BUSY).
   - `acquire <game|editor|cook|build|sn1> [--wait S] [--note T]`: exit 0 means this session holds the lock. `--wait` polls every `SN2_LOCK_POLL` s (default 15). Run long waits with `run_in_background: true`. Re-acquiring a lock you hold refreshes it and adds `<what>`.

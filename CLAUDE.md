@@ -26,6 +26,7 @@ If it is missing, ask the user for the paths and create it.
 
 ## Parallel sessions: one heavy job at a time
 RAM allows only one of these at a time: the game, the modkit editor, a cook, Subnautica 1 (any SN1 launch, incl. `sn1_run.sh`), or the SN1 builder / terrain extractor. Several sessions may run at once, so they share the lock `bash src/tools/heavy_lock.sh`.
+- This list is the single source of truth: `research/01_runbook.md` and the agent files in `.claude/agents/` point here instead of copying it. When you change it, also update `SN2_HEAVY_PROCS` in `src/tools/heavy_lock.sh` (the process-name prefixes the lock counts as heavy work), and make sure the new job's launcher script takes the lock.
 - Check `heavy_lock.sh status` before planning heavy work.
 - launch_game / install_mod / launch_editor / ue_run / cook_install / autotest take or require the lock themselves, and refuse with exit 4, 5 or 2 when another session holds it.
 - To wait for the lock, run `heavy_lock.sh acquire <what> --wait <s>` in the background. Do not poll.

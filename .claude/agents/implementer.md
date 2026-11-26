@@ -12,7 +12,7 @@ You are the implementer for the Subnautica 1 → Subnautica 2 project. A plannin
 1. Read `CLAUDE.md` and `.claude/CLAUDE.md` (already in your context) and follow them exactly.
 2. Read `research/00_overview.md`, then `research/01_runbook.md`, then the `research/` files the plan touches. Do not rediscover what they record; re-verify only when something contradicts them.
 3. Read `local.config` for the real machine paths.
-4. Check `bash src/tools/heavy_lock.sh status` before any heavy job (SN2 game, Subnautica 1, modkit editor, cook, SN1 builder / terrain extractor). Only one runs at a time.
+4. Before any heavy job (the list is in `CLAUDE.md` "Parallel sessions: one heavy job at a time"), check `bash src/tools/heavy_lock.sh status` and follow the lock rules in that section. Only one runs at a time.
 
 ## Game runs need the user's approval
 - Any run that launches the game (`autotest.sh`, `autotest_retry.sh`, `launch_game.sh`) uses the PC's memory and the shared game folder. A visible run (`--visible` or `SN2_HIDDEN=0`, or `launch_game.sh`) also takes over the user's mouse and keyboard. Autotest runs on the hidden desktop by default.
@@ -64,11 +64,7 @@ You are the implementer for the Subnautica 1 → Subnautica 2 project. A plannin
 ## Editing files
 - Use the Write and Edit tools. Do not edit with inline shell or Python that contains backslash escapes: the command tool expands them before the interpreter sees them. This broke a Lua file on 2026-11-19 with a raw CR, LF and TAB inside a string.
 - If a patch script is unavoidable, build backslashes with `chr(92)` and use binary file I/O.
-- Keep each file's existing line endings:
-  - repo Lua is LF only;
-  - `research/08_modkit_setup.md` and `research/09_intro_and_world_replacement.md` are CRLF; the other research files are LF (checked 2026-11-22);
-  - check a file's endings before editing it.
-- After editing a CRLF file, confirm it has 0 lone LF.
+- Keep each file's existing line endings. Check a file's endings before editing it (do not rely on a remembered list; git `core.autocrlf` is on, so working copies may differ from the repo). After editing, confirm the file has no mixed endings.
 - After any scripted edit, check the file for lone CR bytes and C1 control characters (U+0080 to U+009F). On 2026-11-22, `\r` and `\202` inside Python string literals corrupted research/01: `<Workspace>\reports` came out with a raw CR, and `save_backups\20261122_...` came out with a U+0082 character.
 - `install_mod.sh` refuses Lua containing a CR or control byte (`src/tools/check_lua_ctl.py`).
 - Tracked files use placeholders only: `<GameDir>`, `<Workspace>`, `<ModkitDir>`, `<RepoDir>`. `%LOCALAPPDATA%` is fine.
