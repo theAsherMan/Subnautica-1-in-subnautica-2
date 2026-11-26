@@ -8,7 +8,18 @@ import subprocess
 import unreal
 
 MAPS = ["/Game/Maps/Main/L_Main", "/Game/Mods/SN2EmptyWorld/L_SN2World"]
-OUT_DIR = os.environ.get("OCEAN_T3D_OUT", r"D:/SN2Modkit")
+
+
+def _modkit_dir():
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    with open(os.path.join(repo, "local.config"), encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("SN2_MODKIT_DIR="):
+                return line.split("=", 1)[1].strip().strip('"')
+    raise RuntimeError("SN2_MODKIT_DIR not in local.config")
+
+
+OUT_DIR = os.environ.get("OCEAN_T3D_OUT") or _modkit_dir()
 CLASSES = ("BP_Ocean_C", "WaterZone")
 
 
