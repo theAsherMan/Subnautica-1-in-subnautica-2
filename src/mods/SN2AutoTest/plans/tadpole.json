@@ -1,0 +1,10 @@
+{
+ "name": "tadpole", "mods": ["SN2Tadpole"],
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "spawn", "cmd": "tadpole", "cmdWait": 6},
+  {"name": "uw_pod", "offset": [0, 0, -200]}
+ ],
+ "settleSeconds": 15
+}
