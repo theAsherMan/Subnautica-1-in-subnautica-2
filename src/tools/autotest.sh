@@ -196,7 +196,6 @@ cp "$RUN/manifest.tsv" "$OUT/manifest.tsv" 2>/dev/null
 cp "$UE4LOG" "$OUT/UE4SS.log" 2>/dev/null
 cp "$GAMELOG" "$OUT/Subnautica2.log" 2>/dev/null
 cp "$PLANFILE" "$OUT/plan.json" 2>/dev/null
-for f in "$RUN"/poddump_*.txt; do [ -f "$f" ] && cp "$f" "$OUT/"; done
 for f in "$SN2_UE4SS_DIR/Mods/SN2Census/census_"*.txt; do [ -f "$f" ] && [ "$f" -nt "$MARK" ] && cp "$f" "$OUT/census/"; done
 for d in $(ls "$CRASHDIR" 2>/dev/null | sort | comm -13 "$OUT/.crashes_before" -); do cp -r "$CRASHDIR/$d" "$OUT/crash/" 2>/dev/null; done
 for f in $(ls "$SN2_UE4SS_DIR"/crash_*.dmp 2>/dev/null | sort | comm -13 "$OUT/.dmp_before" -); do cp "$f" "$OUT/crash/" 2>/dev/null; done

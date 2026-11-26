@@ -3,8 +3,8 @@
 -- Logs:   [SN2AutoTest] WORLD <name>   on every map load,  PAWN possessed (+ spawn location),  STATE ... on Ctrl+F11
 -- Keys:   Ctrl+Shift+Z/X/C/V/B = teleport to waypoint 1..5 of the plan (lifepod + offset, or the recorded spawn); Ctrl+F11 = log STATE.
 -- Only non-observing action: if plan.worldLevel is set, UWELobbyStatics.SetWorldLevel 2 s after WORLD L_ClientLobby (test setup, no menu exists for it).
--- Also (observe-only reads): `BASE comp=.. owner=.. loc=.. rot=..` after every STATE and at SETTLED (what the pawn stands on); at SETTLED a pod component
--- dump run\poddump_<world>_<ts>.txt (components of actors near the lifepod + BP_LifepodManager_C properties; see src/tools/pod_diff.py).
+-- Also (observe-only reads): `BASE comp=.. owner=.. loc=.. rot=..` after every STATE and at SETTLED (what the pawn stands on). The old SETTLED pod
+-- component dump (PODDUMP) was removed 2026-11-26 (it crashed UE4SS while the world streamed; recover: git show a3fa5e5:src/mods/SN2AutoTest/Scripts/main.lua).
 -- OS mode never calls StartNewLocalGame*, LoadLocalGame, SetControlRotation, QuitGame or console commands. ENGINE mode (plan.inputMode=engine, see the block
 -- 'ENGINE INPUT MODE' below) polls run\cmd.txt and does menu clicks / look injection from inside the game (nothing is sent through the OS).
 local MOD = "SN2AutoTest"
@@ -75,7 +75,7 @@ local function after(sec, fn)
     end)
 end
 
-local logBase, dumpPod, logOceanBody   -- defined below (observe-only: BASE line + pod component dump)
+local logBase, logOceanBody   -- defined below (observe-only: BASE line + ocean body line)
 local gen = 0
 local spawnLoc = nil
 local lobbySeen = false
@@ -106,8 +106,6 @@ local function waitPawn(myGen)
                 log(string.format("SETTLED spawn=(%.0f,%.0f,%.0f)", l2.X, l2.Y, l2.Z))
                 logBase()
                 pcall(logOceanBody, "settled")
-                local okd, errd = pcall(dumpPod)
-                if not okd then log("PODDUMP failed: " .. tostring(errd)) end
             end
         end)
         return
@@ -352,7 +350,7 @@ local function logState()
     if not censusDone then pcall(logOceanBody, "firstState"); pcall(waterCensus) end
 end
 
--- ---------------------------------------------------------------- pod component dump (observe-only; read calls only, each in pcall)
+-- ---------------------------------------------------------------- shared read helpers (observe-only; each in pcall)
 local function str(v)
     local t = type(v)
     if t == "nil" then return "?" end
@@ -388,183 +386,6 @@ local function isA(o, cls)
     if cls == nil then return false end
     local ok, r = pcall(function() return o:IsA(cls) end)
     return ok and r == true
-end
-
-function dumpPod()
-    local pods = findAll("BP_StaticLifepod_Surface_C")
-    local pod = pods[1]
-    if not pod then log("PODDUMP skipped: no BP_StaticLifepod_Surface_C"); return end
-    local pl = pod:K2_GetActorLocation()
-    local sceneCls = StaticFindObject("/Script/Engine.SceneComponent")
-    local primCls = StaticFindObject("/Script/Engine.PrimitiveComponent")
-    local smCls = StaticFindObject("/Script/Engine.StaticMeshComponent")
-    local ismCls = StaticFindObject("/Script/Engine.InstancedStaticMeshComponent")
-    local caCls = StaticFindObject("/Script/Engine.ChildActorComponent")
-
-    -- actors in scope
-    local scope, order, seen = {}, {}, {}
-    local function add(a)
-        local ok, key = pcall(function() return a:GetFullName() end)
-        if ok and not seen[key] then seen[key] = true; scope[#scope + 1] = a end
-    end
-    local all = findAll("Actor")
-    local podKey = try(function() return pod:GetFullName() end)
-    for _, a in ipairs(all) do
-        local destroyed = false
-        pcall(function() destroyed = a:IsActorBeingDestroyed() end)
-        if not destroyed then
-            local near = false
-            pcall(function()
-                local l = a:K2_GetActorLocation()
-                local dx, dy, dz = l.X - pl.X, l.Y - pl.Y, l.Z - pl.Z
-                near = (dx * dx + dy * dy + dz * dz) <= 1500 * 1500
-            end)
-            local attached = false
-            pcall(function()
-                local cur = a
-                for _ = 1, 25 do
-                    cur = cur:GetAttachParentActor()
-                    if not isValid(cur) then break end
-                    if cur:GetFullName() == podKey then attached = true; break end
-                end
-            end)
-            local water = false   -- always include the ocean / biome region / WaterZone whatever their distance
-            pcall(function()
-                local cn = a:GetClass():GetFName():ToString()
-                water = (cn == "BP_Ocean_C" or cn == "BP_UWEOceanBiomeRegionActor_C" or cn == "WaterZone")
-            end)
-            if near or attached or water then add(a) end
-        end
-    end
-    for _, m in ipairs(findAll("BP_LifepodManager_C")) do add(m) end
-
-    local world = "?"
-    pcall(function() world = pod:GetWorld():GetFName():ToString() end)
-    local path = string.format("%s\\poddump_%s_%s.txt", RUN_DIR, world, os.date("%Y%m%d_%H%M%S"))
-    local f, err = io.open(path, "w")
-    if not f then log("PODDUMP cannot open " .. path .. ": " .. tostring(err)); return end
-    local cols = { "actor", "actorClass", "actorHidden", "actorCollision", "comp", "compClass", "parent", "parentOwner", "socket",
-        "relLoc", "relRot", "relScale", "worldLoc", "worldRot", "worldScale", "mobility", "visible", "hiddenInGame",
-        "collisionEnabled", "collisionProfile", "mesh", "instances", "childActor", "dataLayers", "isRoot" }
-    f:write(table.concat(cols, "\t") .. "\n")
-    local byOwner = {}
-    for _, c in ipairs(findAll("SceneComponent")) do
-        local okO, ok2 = pcall(function() return c:GetOwner():GetFullName() end)
-        if okO and ok2 then
-            local l = byOwner[ok2]
-            if not l then l = {}; byOwner[ok2] = l end
-            l[#l + 1] = c
-        end
-    end
-    local rows = 0
-    local diagN = 0
-    local mgr = nil
-    log(string.format("PODDUMP scope actors=%d (of %d Actor instances), pod at (%.0f,%.0f,%.0f)", #scope, #all, pl.X, pl.Y, pl.Z))
-    for _, a in ipairs(scope) do
-        local aname = nameOf(a)
-        local aclass = try(function() return a:GetClass():GetFName():ToString() end)
-        if aclass == "BP_LifepodManager_C" then mgr = a end
-        local ahidden = str(try(function() return a.bHidden end))
-        local acoll = str(try(function() return a:GetActorEnableCollision() end))
-        local layers = "?"
-        pcall(function()
-            local t = {}
-            for _, dl in ipairs(toList(a:GetDataLayerAssets())) do t[#t + 1] = nameOf(dl) end
-            layers = (#t > 0) and table.concat(t, ",") or "-"
-        end)
-        local root = nil
-        pcall(function() root = a.RootComponent end)
-        local rootKey = isValid(root) and try(function() return root:GetFullName() end) or ""
-        -- components come from FindAllOf("SceneComponent") grouped by owner: K2_GetComponentsByClass returns RemoteUnrealParam elements here
-        -- (element :get() did not yield usable UObjects, 2026-11-18), the FindAllOf tables hold real UObjects
-        local okc, errc = true, nil
-        local comps = byOwner[try(function() return a:GetFullName() end)] or {}
-        diagN = diagN + 1
-        if diagN <= 2 or aclass == "BP_StaticLifepod_Surface_C" or (#comps > 0 and not isValid(comps[1])) then
-            local nvalid = 0
-            for _, c in ipairs(comps) do if isValid(c) then nvalid = nvalid + 1 end end
-            local c1 = comps[1]
-            local w1, w2, w3 = "?", "?", "?"
-            if c1 ~= nil then
-                local o1, r1 = pcall(function() local v = c1:K2_GetComponentLocation(); return string.format("%.1f,%.1f,%.1f", v.X, v.Y, v.Z) end); w1 = o1 and r1 or ("ERR " .. tostring(r1))
-                local o2, r2 = pcall(function() local v = c1.ComponentToWorld.Translation; return string.format("%.1f,%.1f,%.1f", v.X, v.Y, v.Z) end); w2 = o2 and r2 or ("ERR " .. tostring(r2))
-                local o3, r3 = pcall(function() local v = c1.RelativeLocation; return string.format("%.1f,%.1f,%.1f", v.X, v.Y, v.Z) end); w3 = o3 and r3 or ("ERR " .. tostring(r3))
-            end
-            log(string.format("PODDUMP diag actor=%s class=%s ok=%s err=%s comps=%d valid=%d type1=%s K2loc=%s CtW=%s rel=%s", aname, aclass, tostring(okc), tostring(errc), #comps, nvalid, type(c1), w1, w2, w3))
-        end
-        for _, c in ipairs(comps) do
-            if isValid(c) then
-                local parent, powner = "none", "none"
-                pcall(function()
-                    local ap = c:GetAttachParent()
-                    if isValid(ap) then parent = nameOf(ap); powner = ap:GetOwner():GetFName():ToString() end
-                end)
-                local prim = isA(c, primCls)
-                local mesh, inst, child, ce, cp = "-", "-", "-", "-", "-"
-                if prim then
-                    ce = str(try(function() return c:GetCollisionEnabled() end))
-                    cp = str(try(function() return c:GetCollisionProfileName() end))
-                end
-                if isA(c, smCls) then
-                    mesh = try(function() return c.StaticMesh:GetFullName() end)
-                    if isA(c, ismCls) then inst = str(try(function() return c:GetInstanceCount() end)) end
-                end
-                if isA(c, caCls) then child = try(function() return nameOf(c.ChildActor) end) end
-                local row = {
-                    aname, aclass, ahidden, acoll,
-                    nameOf(c), try(function() return c:GetClass():GetFName():ToString() end),
-                    parent, powner, str(try(function() return c:GetAttachSocketName() end)),
-                    fmtV(try(function() return c.RelativeLocation end)), fmtR(try(function() return c.RelativeRotation end)), fmtV(try(function() return c.RelativeScale3D end)),
-                    fmtV(try(function() return c:K2_GetComponentLocation() end)), fmtR(try(function() return c:K2_GetComponentRotation() end)), fmtV(try(function() return c:K2_GetComponentScale() end)),
-                    str(try(function() return c.Mobility end)), str(try(function() return c:IsVisible() end)), str(try(function() return c.bHiddenInGame end)),
-                    ce, cp, str(mesh), inst, str(child), layers,
-                    (rootKey ~= "" and try(function() return c:GetFullName() end) == rootKey) and "1" or "0",
-                }
-                for i = 1, #row do row[i] = tostring(row[i]):gsub("[\t\r\n]", " ") end
-                f:write(table.concat(row, "\t") .. "\n")
-                rows = rows + 1
-            end
-        end
-    end
-    -- lifepod manager: every property of its class chain up to (excluding) Actor
-    f:write("\n## MANAGER_PROPERTIES\tname\tpropertyClass\tvalue\n")
-    if mgr then
-        local c = nil
-        pcall(function() c = mgr:GetClass() end)
-        for _ = 1, 20 do
-            if not c or not isValid(c) then break end
-            local cname = nameOf(c)
-            if cname == "Actor" then break end
-            pcall(function()
-                c:ForEachProperty(function(prop)
-                    local pn = try(function() return prop:GetFName():ToString() end)
-                    local pc = try(function() return prop:GetClass():GetFName():ToString() end)
-                    local v = "?"
-                    pcall(function()
-                        local raw = mgr[pn]
-                        local t = type(raw)
-                        if t == "number" or t == "boolean" then v = tostring(raw)
-                        elseif t == "userdata" and (pc == "ObjectProperty" or pc == "NameProperty" or pc == "StrProperty" or pc == "TextProperty" or pc == "EnumProperty" or pc == "ByteProperty") then
-                            local okn, nm = pcall(function() return raw:GetFullName() end)
-                            if okn and type(nm) == "string" then v = nm
-                            else
-                                local okt, tn = pcall(function() return raw:ToString() end)
-                                if okt and type(tn) == "string" and (pc == "NameProperty" or pc == "StrProperty" or pc == "TextProperty") then v = tn end
-                            end
-                        end
-                    end)
-                    f:write(string.format("%s\t%s\t%s\t%s\n", cname, pn, pc, tostring(v):gsub("[\t\r\n]", " ")))
-                end)
-            end)
-            local nxt = nil
-            pcall(function() nxt = c:GetSuperStruct() end)
-            c = nxt
-        end
-    else
-        f:write("none\t-\t-\tno BP_LifepodManager_C found\n")
-    end
-    f:close()
-    log(string.format("PODDUMP written %s rows=%d", path, rows))
 end
 
 -- ================================================================ ENGINE INPUT MODE (plan.inputMode == "engine"; 2026-11-22)
