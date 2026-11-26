@@ -210,6 +210,138 @@ def surface_nets(T, D):
     return verts, np.concatenate(tris).astype(np.int64), np.concatenate(ttype)
 
 
+def edge_table(tris, nv):
+    """Per undirected edge: (lo, hi, use count, signed sum of directions). Closed oriented manifold edge: count 2, sum 0."""
+    e = np.concatenate([tris[:, [0, 1]], tris[:, [1, 2]], tris[:, [2, 0]]]).astype(np.int64)
+    lo = np.minimum(e[:, 0], e[:, 1])
+    hi = np.maximum(e[:, 0], e[:, 1])
+    dr = np.where(e[:, 0] < e[:, 1], 1, -1)
+    key = lo * nv + hi
+    uk, inv = np.unique(key, return_inverse=True)
+    inv = inv.reshape(-1)
+    cnt = np.bincount(inv)
+    tot = np.bincount(inv, weights=dr).astype(np.int64)
+    return uk // nv, uk % nv, cnt, tot
+
+
+def make_manifold(verts, tris, ttype, max_pass=4):
+    """Split vertices so no edge is shared by 3+ triangles or by 2 triangles of the same direction.
+
+    Surface nets (one vertex per cell) makes such edges where a cell face is ambiguous (checkerboard: two
+    diagonal corners inside) or where two sheets touch: 4 quads then share one edge. A DynamicMesh /
+    GeometryScript mesh refuses the 3rd+ triangle of an edge and the 2nd same-direction triangle, so the
+    importer lost them (single-triangle holes). Fix: every (triangle, corner) is a node; nodes of one
+    vertex are joined across good edges (fans); at a bad edge the triangles are paired (opposite direction,
+    preferring the pairing that agrees with the fans at BOTH endpoints) and the pairs are joined at both
+    endpoints. Each remaining class of a vertex gets its own copy of the vertex (same position), so the
+    geometry is unchanged and the sheets just stop sharing the vertex. Returns verts, tris, info.
+    """
+    nv0 = len(verts)
+    verts = verts.copy()
+    tris = tris.copy()
+    info = {"bad_edges_per_pass": []}
+    for _ in range(max_pass):
+        nv = len(verts)
+        lo, hi, cnt, tot = edge_table(tris, nv)
+        bad = (cnt > 2) | ((cnt == 2) & (tot != 0))
+        nbad = int(bad.sum())
+        info["bad_edges_per_pass"].append(nbad)
+        if nbad == 0:
+            break
+        badkey = set((lo[bad] * nv + hi[bad]).tolist())
+        bv = np.unique(np.concatenate([lo[bad], hi[bad]]))
+        flat = tris.reshape(-1)
+        order = np.argsort(flat, kind="stable")
+        sv = flat[order]
+        par = {}
+
+        def find(x):
+            par.setdefault(x, x)
+            while par[x] != x:
+                par[x] = par[par[x]]
+                x = par[x]
+            return x
+
+        def union(x, y):
+            par[find(x)] = find(y)
+        tl_of = {}
+        bad_tris = {}  # edge key -> [(tri, dir)]
+        for v in bv.tolist():
+            a = np.searchsorted(sv, v, "left")
+            b = np.searchsorted(sv, v, "right")
+            tl = (order[a:b] // 3).tolist()
+            tl_of[v] = tl
+            by_u = {}
+            for t in tl:
+                tv = tris[t].tolist()
+                i = tv.index(v)
+                nxt = tv[(i + 1) % 3]
+                prv = tv[(i + 2) % 3]
+                by_u.setdefault(nxt, []).append((t, 1))   # edge v->nxt
+                by_u.setdefault(prv, []).append((t, -1))  # edge prv->v
+            for u, ts in by_u.items():
+                k = min(u, v) * nv + max(u, v)
+                if k in badkey:
+                    if v < u:
+                        bad_tris[k] = [(t, d if v < u else -d) for t, d in ts]
+                elif len(ts) == 2:
+                    union((ts[0][0], v), (ts[1][0], v))
+            for t in tl:
+                find((t, v))
+        fan = {x: find(x) for x in list(par)}  # snapshot: fans through good edges only
+        for k, lst in bad_tris.items():
+            v, u = divmod(k, nv)
+            plus = [t for t, d in lst if d > 0]
+            minus = [t for t, d in lst if d < 0]
+            pairs = []
+            for key_ in ("v", "u", "any"):
+                for tp in list(plus):
+                    for tm in list(minus):
+                        if (key_ == "v" and fan.get((tp, v)) == fan.get((tm, v))) or                            (key_ == "u" and fan.get((tp, u)) == fan.get((tm, u))) or key_ == "any":
+                            pairs.append((tp, tm))
+                            plus.remove(tp)
+                            minus.remove(tm)
+                            break
+            # same-direction leftovers (2 same-dir tris, no opposite): keep apart, nothing to join
+            for tp, tm in pairs:
+                union((tp, v), (tm, v))
+                union((tp, u), (tm, u))
+        newv = []
+        for v in bv.tolist():
+            seen = {}
+            for t in tl_of[v]:
+                r = find((t, v))
+                if r not in seen:
+                    seen[r] = v if not seen else nv + len(newv)
+                    if seen[r] != v:
+                        newv.append(verts[v])
+                if seen[r] != v:
+                    tris[t][tris[t] == v] = seen[r]
+        if not newv:
+            break
+        verts = np.concatenate([verts, np.array(newv, verts.dtype)])
+    info["vertices_added"] = int(len(verts) - nv0)
+    lo, hi, cnt, tot = edge_table(tris, len(verts))
+    info["final_bad_edges"] = int(((cnt > 2) | ((cnt == 2) & (tot != 0))).sum())
+    info["final_open_edges_total"] = int((cnt == 1).sum())
+    return verts, tris, info
+
+
+def topo_check(vu, tris, lo_ue, hi_ue, tol_cm=300.0):
+    """Index-based (not position-based) check over ALL kept triangles, equivalent to a cross-tile check.
+    nonmanifold = edges with 3+ triangles or 2 same-direction triangles (anywhere);
+    interior_open = single-use edges whose midpoint is farther than tol_cm from the cube faces
+    (the centroid cull leaves open edges within ~1-2 voxels of the border)."""
+    lo, hi, cnt, tot = edge_table(tris, len(vu))
+    nonman = (cnt > 2) | ((cnt == 2) & (tot != 0))
+    op = cnt == 1
+    m = to_ue(((vu[lo] + vu[hi]) / 2).astype(np.float64))
+    near = np.any((m < lo_ue + tol_cm) | (m > hi_ue - tol_cm), axis=1)
+    return {"edges": int(len(lo)), "nonmanifold_edges": int(nonman.sum()), "open_edges": int(op.sum()),
+            "open_near_cube_border": int((op & near).sum()), "interior_open_edges": int((op & ~near).sum()),
+            "interior_open_plus_nonmanifold": int((op & ~near).sum() + nonman.sum())}
+
+
 def to_ue(v_unity):
     o = np.empty_like(v_unity, dtype=np.float64)
     o[:, 0] = 100.0 * v_unity[:, 2]
@@ -375,6 +507,8 @@ def main():
     hist = np.bincount(T.reshape(-1), minlength=256)
     ins = inside_mask(T, D)
     verts, tris, ttype = surface_nets(T, D)
+    verts, tris, mfinfo = make_manifold(verts, tris, ttype)
+    print("make_manifold", mfinfo, flush=True)
     t_mesh = time.time() - t0
     print("meshed %.1fs verts %d tris %d" % (t_mesh, len(verts), len(tris)), flush=True)
     # unity-metre world coords (voxel centres at +0.5)
@@ -410,7 +544,9 @@ def main():
     ue_bmax = to_ue(umax[None])[0]
     lo_ue = np.minimum(ue_bmin, ue_bmax)
     hi_ue = np.maximum(ue_bmin, ue_bmax)
-    gaps = tile_gap_check(out, files, lo_ue, hi_ue)
+    gaps = tile_gap_check(out, files, lo_ue, hi_ue)  # position-keyed legacy check: cannot tell split vertex copies apart
+    gaps["topology_index_based"] = topo_check(vu, tris, lo_ue, hi_ue)
+    gaps["make_manifold"] = mfinfo
     # seabed normal check: triangles within 20 m of spot (xz), upward-facing sign
     seab = {}
     near = np.all(np.abs(cen[:, [0, 2]] - spot[[0, 2]]) < 20, axis=1)

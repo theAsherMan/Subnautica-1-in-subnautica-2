@@ -1,0 +1,52 @@
+# Reference shots at the origin-cube viewpoint (Unity 40,-18,-10; 9.1 m above the seabed, about 41 m SSW of the pod). 8 yaws + up + down. See research/11.
+wait menu 300
+cmd newgame creative
+wait ingame 600
+cmd teleport 40 -18 -10
+sleep 2
+wait ingame 120
+cmd pos
+cmd cam
+cmd pos
+cmd look 0 0
+sleep 1
+cmd shot origin_yaw000.png
+sleep 0.5
+cmd look 45 0
+sleep 1
+cmd shot origin_yaw045.png
+sleep 0.5
+cmd look 90 0
+sleep 1
+cmd shot origin_yaw090.png
+sleep 0.5
+cmd look 135 0
+sleep 1
+cmd shot origin_yaw135.png
+sleep 0.5
+cmd look 180 0
+sleep 1
+cmd shot origin_yaw180.png
+sleep 0.5
+cmd look 225 0
+sleep 1
+cmd shot origin_yaw225.png
+sleep 0.5
+cmd look 270 0
+sleep 1
+cmd shot origin_yaw270.png
+sleep 0.5
+cmd look 315 0
+sleep 1
+cmd shot origin_yaw315.png
+sleep 0.5
+cmd look 0 89
+sleep 1
+cmd shot origin_up.png
+sleep 0.5
+cmd look 0 -89
+sleep 1
+cmd shot origin_down.png
+sleep 0.5
+cmd pos
+cmd quit

@@ -1,0 +1,12 @@
+{
+ "name": "holes_recheck",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "r001", "at": [-1636, -2279, -2161], "views": "fixed", "yaw": -155.5, "pitch": 45.5, "o2": true, "cmdAfter": "bugshot", "cmdWait": 4},
+  {"name": "r002", "at": [-2813, -3308, -2448], "views": "fixed", "yaw": -171.3, "pitch": -41.6, "o2": true, "cmdAfter": "bugshot", "cmdWait": 4},
+  {"name": "r003", "at": [-2092, -4313, -2597], "views": "fixed", "yaw": -51.2, "pitch": 53.2, "o2": true, "cmdAfter": "bugshot", "cmdWait": 4},
+  {"name": "r003_8", "at": [-2092, -4313, -2597], "views": "abs8ud", "o2": true}
+ ],
+ "settleSeconds": 15
+}

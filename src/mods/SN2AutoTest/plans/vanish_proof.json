@@ -1,0 +1,11 @@
+{
+ "name": "vanish_proof",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "vp", "at": [-2092, -4313, -2597], "views": "vanish", "yaw": -51.2, "pitch": 53.2, "o2": true,
+   "wait": 600, "shotEvery": 30, "probeEvery": 30, "o2Every": 30, "forceGoalAt": 420, "afterBurst": 200},
+  {"name": "vp_after", "at": [-2092, -4313, -2597], "views": "abs8ud", "o2": true}
+ ],
+ "settleSeconds": 15
+}

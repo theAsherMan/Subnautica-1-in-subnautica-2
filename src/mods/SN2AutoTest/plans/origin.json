@@ -1,0 +1,10 @@
+{
+ "name": "origin",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "open_water", "at": [-1000, 4000, -1800], "views": "abs8ud", "fov": 91.49, "o2": true, "probe": "sn1"},
+  {"name": "under_surface", "at": [0, 800, -200], "views": "down45", "o2": true}
+ ],
+ "settleSeconds": 15
+}
