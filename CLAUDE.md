@@ -21,6 +21,9 @@ If it is missing, ask the user for the paths and create it.
 - Install: `bash src/tools/install_mod.sh <Mod>`. UE4SS reads Lua only at game launch — a full quit + relaunch is required
   (`src/tools/relaunch_on_exit.sh` in the background, then ask the tester to quit). Save backup: `bash src/tools/backup_saves.sh`.
 - Watch results with the Monitor tool on `bash src/tools/watch_log.sh`; re-arm it after expiry and after any session restart.
+- SN1 vs SN2 comparison samples: `samples/<biome>/<shot>/{SN1,SN2}/` (picture + info.json each). When the user says **"use the samples"**, follow
+  `samples/README.md` step by step (take the prescribed SN2 photos with one autotest run, `src/tools/samples.py` import + analyze, write each
+  `analysis.md`, record the result in `research/`). New SN1 references come only from `src/tools/sn1_live.py capture` in the user's own SN1 session.
 - Modkit (Unreal editor) work: `src/modkit/` — editor Python scripts in `scripts/`, runner `tools/ue_run.py` (runs them inside the open editor),
   `tools/cook_install.sh <Mod> <ChunkId>`, `tools/launch_editor.sh` (opens the editor; use it instead of double-clicking `Launch-Editor.cmd`), editor add-on source `plugins/SN2GraphTools` (copied into the modkit project). See `research/08_modkit_setup.md`.
 

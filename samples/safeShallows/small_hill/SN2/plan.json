@@ -1,0 +1,39 @@
+{
+ "name": "sn1cmp_small_hill",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "small_hill",
+   "at": [
+    -11511,
+    -2871,
+    -213
+   ],
+   "views": "fixed",
+   "yaw": 147.49,
+   "pitch": -31.65,
+   "fov": 91.49,
+   "o2": true
+  }
+ ],
+ "settleSeconds": 15,
+ "_sn1": {
+  "player": [
+   -28.7116489,
+   -2.13152981,
+   -115.105164
+  ],
+  "camera": [
+   -28.76258,
+   -2.00467038,
+   -115.025261
+  ],
+  "biome": "safeShallows",
+  "fovV": 60,
+  "screen": [
+   1920,
+   1080
+  ]
+ }
+}

@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+"""SN1 vs SN2 comparison samples in the repo's samples/ folder (procedure: samples/README.md).
+
+  python -I src/tools/samples.py list
+  python -I src/tools/samples.py plan    [--biome B] [--shot a,b] [--no-env]     -> src/mods/SN2AutoTest/plans/samples.json
+  python -I src/tools/samples.py import  <autotest run dir> [--move] [--biome B] [--shot a,b]
+  python -I src/tools/samples.py analyze [--biome B] [--shot a,b]                -> <shot>/compare.png + <shot>/metrics.json, table on stdout
+
+Layout: samples/<biome>/<shot>/SN1/{shot.png, info.json}, samples/<biome>/<shot>/SN2/{shot.png, info.json, plan.json}.
+SN1 side: written by `sn1_live.py capture <shot>` (never by this tool). SN2 side: `plan` -> autotest run -> `import`.
+`plan` takes every selected shot's SN2/plan.json waypoint (views "fixed"; with envprobe after each view unless --no-env) into one plan named "samples".
+`import` copies the run's shots by waypoint name into <shot>/SN2/ (shot.png; shot_k<k>.png if a waypoint has several), writes info.json
+(capture time UTC + local, target and measured pose, pitch from the UE4SS.log STATE line, world, game build, run id) and keeps
+info.json "notes" if the same run/image is re-imported. --move deletes the copied PNGs from the run folder.
+`analyze` needs SN1/shot.png and SN2/shot.png; it writes compare.png (SN1 left, SN2 right, gitignored) and metrics.json and prints the table.
+"""
+import datetime, json, os, re, shutil, struct, sys, time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
+SAMPLES = os.path.join(REPO, "samples")
+PLAN_OUT = os.path.join(REPO, "src", "mods", "SN2AutoTest", "plans", "samples.json")
+
+
+def cfg():
+    d = {}
+    for line in open(os.path.join(REPO, "local.config"), encoding="utf-8"):
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            d[k] = v.strip().strip('"')
+    return d
+
+
+def jload(p):
+    return json.load(open(p, encoding="utf-8"))
+
+
+def jsave(p, obj):
+    with open(p, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(obj, f, indent=1)
+        f.write("\n")
+
+
+def shots(biome=None, only=None):
+    """[(biome, shot, dir)] sorted."""
+    out = []
+    if not os.path.isdir(SAMPLES):
+        return out
+    for b in sorted(os.listdir(SAMPLES)):
+        bd = os.path.join(SAMPLES, b)
+        if not os.path.isdir(bd) or (biome and b != biome):
+            continue
+        for s in sorted(os.listdir(bd)):
+            sd = os.path.join(bd, s)
+            if os.path.isdir(sd) and (os.path.isdir(os.path.join(sd, "SN1")) or os.path.isdir(os.path.join(sd, "SN2"))):
+                if not only or s in only:
+                    out.append((b, s, sd))
+    return out
+
+
+def times(unix):
+    t = datetime.datetime.fromtimestamp(unix, datetime.timezone.utc)
+    return t.isoformat().replace("+00:00", "Z"), t.astimezone().isoformat()
+
+
+def png_size(p):
+    with open(p, "rb") as f:
+        h = f.read(24)
+    return list(struct.unpack(">II", h[16:24])) if h[:8] == b"\x89PNG\r\n\x1a\n" else None
+
+
+def game_build(c):
+    try:
+        raw = open(os.path.join(c.get("SN2_GAME_DIR", ""), "version.txt"), "rb").read()
+        return (raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8", "replace")).strip()
+    except OSError:
+        return None
+
+
+# ------------------------------------------------------------------ list
+def cmd_list(args):
+    rows = []
+    for b, s, d in shots(args.get("biome"), args.get("shot")):
+        def t(game):
+            p = os.path.join(d, game, "info.json")
+            if not os.path.isfile(p):
+                return "-"
+            i = jload(p)
+            return (i.get("capture_time_utc") or i.get("utc") or "?")[:19]
+        rows.append((b, s, t("SN1"), t("SN2"), "yes" if os.path.isfile(os.path.join(d, "metrics.json")) else "-",
+                     "yes" if os.path.isfile(os.path.join(d, "analysis.md")) else "-"))
+    print("%-14s %-16s %-20s %-20s %-8s %s" % ("biome", "shot", "SN1 utc", "SN2 utc", "metrics", "analysis.md"))
+    for r in rows:
+        print("%-14s %-16s %-20s %-20s %-8s %s" % r)
+    return 0
+
+
+# ------------------------------------------------------------------ plan
+def cmd_plan(args):
+    wps, missing = [], []
+    for b, s, d in shots(args.get("biome"), args.get("shot")):
+        p = os.path.join(d, "SN2", "plan.json")
+        if not os.path.isfile(p):
+            missing.append(s); continue
+        for w in jload(p).get("waypoints", []):
+            w = dict(w)
+            if not args.get("no_env"):
+                w["cmdAfter"], w["cmdWait"] = "envprobe", 3
+            wps.append(w)
+    if not wps:
+        print("no shots with SN2/plan.json selected"); return 1
+    plan = {"name": "samples", "worldLevel": None, "start": "new", "waypoints": wps, "settleSeconds": 15,
+            "_note": "GENERATED by src/tools/samples.py plan (%s); do not edit, regenerate. See samples/README.md." % time.strftime("%Y-%m-%d %H:%M")}
+    jsave(PLAN_OUT, plan)
+    timeout = max(600, 300 + 30 * len(wps))
+    print("OK %d waypoints -> %s%s" % (len(wps), os.path.relpath(PLAN_OUT, REPO), ("; no SN2/plan.json: " + ",".join(missing)) if missing else ""))
+    print("run:  bash src/tools/autotest.sh samples --input engine --timeout %d" % timeout)
+    return 0
+
+
+# ------------------------------------------------------------------ import
+STATE = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)(?:\.\d+)?\] .*\bSTATE world=(\S+) pawn=\(([-\d.]+),([-\d.]+),([-\d.]+)\) "
+                   r"cam=\(([-\d.]+),([-\d.]+),([-\d.]+)\) yaw=([-\d.]+) pitch=([-\d.]+)")
+
+
+def states(run):
+    out = []
+    p = os.path.join(run, "UE4SS.log")
+    if os.path.isfile(p):
+        for line in open(p, encoding="utf-8", errors="replace"):
+            m = STATE.match(line)
+            if m:
+                t = time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S"))   # UE4SS.log stamps are local time
+                out.append((t, m.group(2), [float(m.group(i)) for i in range(3, 6)], float(m.group(10))))
+    return out
+
+
+def cmd_import(args):
+    run = os.path.abspath(args["pos"][0])
+    c = cfg()
+    plan = jload(os.path.join(run, "plan.json"))
+    wps = {w["name"]: w for w in plan.get("waypoints", [])}
+    rows = []
+    with open(os.path.join(run, "manifest.tsv"), encoding="utf-8") as f:
+        hdr = f.readline().rstrip("\n").split("\t")
+        rows = [dict(zip(hdr, l.rstrip("\n").split("\t"))) for l in f if l.strip()]
+    if args.get("shot"):
+        rows = [r for r in rows if r["waypoint"] in args["shot"]]
+    count = {}
+    for r in rows:
+        count[r["waypoint"]] = count.get(r["waypoint"], 0) + 1
+    known = {s: d for _, s, d in shots()}
+    sts, build = states(run), game_build(c)
+    ws = c.get("SN2_WORKSPACE")
+    rel_run = ("<Workspace>/" + os.path.relpath(run, ws).replace("\\", "/")) if ws else os.path.basename(run)
+    rc = 0
+    for r in rows:
+        wp = r["waypoint"]
+        d = os.path.join(SAMPLES, args["biome"], wp) if args.get("biome") else known.get(wp)
+        if d is None:
+            print("SKIP %s: no samples/*/%s folder (pass --biome to create one)" % (wp, wp)); rc = 1; continue
+        src = os.path.join(run, "shots", r["file"])
+        if not os.path.isfile(src):
+            print("SKIP %s: %s missing" % (wp, src)); rc = 1; continue
+        out = os.path.join(d, "SN2")
+        os.makedirs(out, exist_ok=True)
+        name = "shot.png" if count[wp] == 1 else "shot_k%s.png" % r["k"]
+        shutil.copy2(src, os.path.join(out, name))
+        unix = float(r["unixTime"])
+        utc, local = times(unix)
+        px, py = float(r["pawnX"]), float(r["pawnY"])
+        st = [s for s in sts if abs(s[2][0] - px) < 1 and abs(s[2][1] - py) < 1 and s[0] <= unix + 1]
+        st = st[-1] if st else None
+        target = dict(wps[wp]) if wp in wps else None
+        if target:
+            target.pop("cmdAfter", None); target.pop("cmdWait", None)
+        info = {
+            "game": "SN2", "shot": wp, "biome": os.path.basename(os.path.dirname(d)), "image": name,
+            "capture_time_utc": utc, "capture_time_local": local,
+            "world": st[1] if st else None, "game_build": build, "run": rel_run, "plan": plan.get("name"),
+            "target": target,
+            "measured": {"pawn": [px, py, float(r["pawnZ"])], "camera": [float(r["camX"]), float(r["camY"]), float(r["camZ"])],
+                         "yaw": float(r["yaw"]), "pitch": st[3] if st else None},
+            "image_size": png_size(src),
+            "notes": "",
+        }
+        ip = os.path.join(out, "info.json")
+        if os.path.isfile(ip):
+            try:
+                old = jload(ip)
+                if old.get("image") == name and old.get("run") == rel_run:
+                    info["notes"] = old.get("notes", "")
+            except ValueError:
+                pass
+        jsave(ip, info)
+        pp = os.path.join(out, "plan.json")
+        if not os.path.isfile(pp) and target:
+            jsave(pp, {"name": "sn1cmp_" + wp, "worldLevel": None, "start": "new", "waypoints": [target], "settleSeconds": 15})
+        if args.get("move"):
+            os.remove(src)
+        print("OK %s -> %s (%s)" % (r["file"], os.path.relpath(os.path.join(out, name), REPO).replace("\\", "/"), utc))
+    return rc
+
+
+# ------------------------------------------------------------------ analyze
+def stats(img):
+    import numpy as np
+    a = np.asarray(img.convert("RGB").resize((480, 270)), dtype=np.float64) / 255.0
+    lum = 0.2126 * a[..., 0] + 0.7152 * a[..., 1] + 0.0722 * a[..., 2]
+    m = a.reshape(-1, 3).mean(0)
+    thirds = [a[i * 90:(i + 1) * 90].reshape(-1, 3).mean(0) for i in range(3)]
+    return {
+        "mean_rgb": [round(float(x) * 255, 1) for x in m],
+        "lum_mean": round(float(lum.mean()) * 255, 1),
+        "lum_std": round(float(lum.std()) * 255, 1),
+        "blue_over_red": round(float(m[2] / max(m[0], 1e-6)), 3),
+        "top_mid_bottom_rgb": [[round(float(x) * 255, 1) for x in t] for t in thirds],
+    }
+
+
+def cmd_analyze(args):
+    from PIL import Image, ImageDraw
+    rc, table = 0, []
+    for b, s, d in shots(args.get("biome"), args.get("shot")):
+        p1, p2 = os.path.join(d, "SN1", "shot.png"), os.path.join(d, "SN2", "shot.png")
+        if not (os.path.isfile(p1) and os.path.isfile(p2)):
+            print("SKIP %s/%s: needs SN1/shot.png and SN2/shot.png" % (b, s)); rc = 1; continue
+        i1, i2 = Image.open(p1), Image.open(p2)
+        s1, s2 = stats(i1), stats(i2)
+        n1 = jload(os.path.join(d, "SN1", "info.json")) if os.path.isfile(os.path.join(d, "SN1", "info.json")) else {}
+        n2 = jload(os.path.join(d, "SN2", "info.json")) if os.path.isfile(os.path.join(d, "SN2", "info.json")) else {}
+        dm = [round(s2["mean_rgb"][k] - s1["mean_rgb"][k], 1) for k in range(3)]
+        met = {"biome": b, "shot": s, "analyzed_utc": times(time.time())[0],
+               "sn1_capture_utc": n1.get("capture_time_utc") or n1.get("utc"), "sn2_capture_utc": n2.get("capture_time_utc"),
+               "sn2_run": n2.get("run"), "SN1": s1, "SN2": s2, "delta_mean_rgb_sn2_minus_sn1": dm,
+               "mean_colour_distance": round(sum(x * x for x in dm) ** 0.5, 1)}
+        jsave(os.path.join(d, "metrics.json"), met)
+        W, H, CAP = 960, 540, 22
+        sheet = Image.new("RGB", (2 * W, H + CAP), (20, 20, 20))
+        g = ImageDraw.Draw(sheet)
+        sheet.paste(i1.convert("RGB").resize((W, H)), (0, CAP))
+        sheet.paste(i2.convert("RGB").resize((W, H)), (W, CAP))
+        g.text((6, 5), "SN1  %s/%s  %s" % (b, s, (met["sn1_capture_utc"] or "")[:19]), fill=(255, 255, 255))
+        g.text((W + 6, 5), "SN2  %s  %s" % ((met["sn2_capture_utc"] or "")[:19], met["sn2_run"] or ""), fill=(255, 255, 255))
+        sheet.save(os.path.join(d, "compare.png"))
+        table.append(met)
+    if table:
+        print("%-28s %-22s %-22s %8s %8s %8s %8s" % ("shot", "SN1 mean rgb", "SN2 mean rgb", "B/R sn1", "B/R sn2", "lum1/2", "colDist"))
+        for m in table:
+            print("%-28s %-22s %-22s %8.2f %8.2f %8s %8.1f" % (
+                m["biome"] + "/" + m["shot"], "(%.0f,%.0f,%.0f)" % tuple(m["SN1"]["mean_rgb"]), "(%.0f,%.0f,%.0f)" % tuple(m["SN2"]["mean_rgb"]),
+                m["SN1"]["blue_over_red"], m["SN2"]["blue_over_red"], "%.0f/%.0f" % (m["SN1"]["lum_mean"], m["SN2"]["lum_mean"]),
+                m["mean_colour_distance"]))
+        print("compare.png + metrics.json written in each shot folder; next: view each compare.png and write analysis.md (samples/README.md)")
+    return rc
+
+
+def main():
+    a = sys.argv[1:]
+    if not a or a[0] not in ("list", "plan", "import", "analyze"):
+        print(__doc__); return 2
+    verb, rest, args = a[0], a[1:], {"pos": []}
+    i = 0
+    while i < len(rest):
+        x = rest[i]
+        if x in ("--biome",):
+            args["biome"] = rest[i + 1]; i += 2
+        elif x == "--shot":
+            args["shot"] = set(rest[i + 1].split(",")); i += 2
+        elif x == "--move":
+            args["move"] = True; i += 1
+        elif x == "--no-env":
+            args["no_env"] = True; i += 1
+        else:
+            args["pos"].append(x); i += 1
+    if verb == "import" and len(args["pos"]) != 1:
+        print(__doc__); return 2
+    return {"list": cmd_list, "plan": cmd_plan, "import": cmd_import, "analyze": cmd_analyze}[verb](args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

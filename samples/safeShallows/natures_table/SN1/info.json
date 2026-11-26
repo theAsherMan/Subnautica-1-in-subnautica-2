@@ -1,0 +1,87 @@
+{
+ "game": "SN1",
+ "shot": "natures_table",
+ "biome": "safeShallows",
+ "image": "shot.png",
+ "capture_time_utc": "2026-11-26T09:34:15Z",
+ "capture_time_local": "2026-11-26T17:34:15+08:00",
+ "source": "src/tools/sn1_live.py capture (SN1Inspector)",
+ "notes": "",
+ "name": "cap_1795685655",
+ "utc": "2026-11-26T09:34:15.8182706Z",
+ "camera": {
+  "pos": [
+   -141.144913,
+   -10.9239712,
+   83.89249
+  ],
+  "euler": [
+   354.525055,
+   155.36264,
+   -1.07210788e-07
+  ],
+  "yaw": 155.36264,
+  "pitch_up": 5.474945,
+  "roll": -1.07210788e-07,
+  "fovV": 60,
+  "fovH": 91.49284,
+  "aspect": 1.77777779,
+  "screen": [
+   1920,
+   1080
+  ],
+  "player": [
+   -141.082382,
+   -10.954052,
+   83.75614
+  ],
+  "depth": 10.954052,
+  "playerBiome": "safeShallows",
+  "biome": "safeShallows",
+  "biomeVisual": "safeShallows",
+  "settingsFound": true,
+  "settings": {
+   "absorption": [
+    125,
+    20,
+    4
+   ],
+   "scattering": 1.2,
+   "scatteringColor": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "murkiness": 0.18,
+   "emissive": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "emissiveScale": 1,
+   "startDistance": 25,
+   "sunlightScale": 1,
+   "ambientScale": 1.5,
+   "temperature": 28,
+   "derived_extinction_per_m": [
+    0.22716,
+    0.0381600037,
+    0.00936000049
+   ],
+   "derived_scattering_per_m": 0.00216000015,
+   "derived_scattering_rgb_per_m": [
+    0.00216000015,
+    0.00216000015,
+    0.00216000015
+   ],
+   "derived_emissive": [
+    0,
+    0,
+    0
+   ]
+  },
+  "dayScalar": 0.592353
+ }
+}

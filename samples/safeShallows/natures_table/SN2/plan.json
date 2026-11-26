@@ -1,0 +1,39 @@
+{
+ "name": "sn1cmp_natures_table",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "natures_table",
+   "at": [
+    8376,
+    -14108,
+    -1095
+   ],
+   "views": "fixed",
+   "yaw": 155.36,
+   "pitch": 5.47,
+   "fov": 91.49,
+   "o2": true
+  }
+ ],
+ "settleSeconds": 15,
+ "_sn1": {
+  "player": [
+   -141.082382,
+   -10.954052,
+   83.75614
+  ],
+  "camera": [
+   -141.144913,
+   -10.9239712,
+   83.89249
+  ],
+  "biome": "safeShallows",
+  "fovV": 60,
+  "screen": [
+   1920,
+   1080
+  ]
+ }
+}

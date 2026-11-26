@@ -1,0 +1,68 @@
+{
+ "biome": "safeShallows",
+ "shot": "shallow_ravine",
+ "analyzed_utc": "2026-11-26T10:34:35.804125Z",
+ "sn1_capture_utc": "2026-11-26T09:30:04Z",
+ "sn2_capture_utc": "2026-11-26T10:07:29Z",
+ "sn2_run": "<Workspace>/autotest/20261126_180611_sn1cmp_shallows_env",
+ "SN1": {
+  "mean_rgb": [
+   29.1,
+   50.5,
+   43.7
+  ],
+  "lum_mean": 45.5,
+  "lum_std": 24.6,
+  "blue_over_red": 1.501,
+  "top_mid_bottom_rgb": [
+   [
+    30.4,
+    45.1,
+    34.5
+   ],
+   [
+    31.0,
+    55.5,
+    48.5
+   ],
+   [
+    25.9,
+    50.9,
+    48.1
+   ]
+  ]
+ },
+ "SN2": {
+  "mean_rgb": [
+   33.9,
+   28.7,
+   30.7
+  ],
+  "lum_mean": 29.9,
+  "lum_std": 20.1,
+  "blue_over_red": 0.904,
+  "top_mid_bottom_rgb": [
+   [
+    37.8,
+    29.8,
+    31.2
+   ],
+   [
+    36.0,
+    28.9,
+    30.4
+   ],
+   [
+    28.0,
+    27.3,
+    30.5
+   ]
+  ]
+ },
+ "delta_mean_rgb_sn2_minus_sn1": [
+  4.8,
+  -21.8,
+  -13.0
+ ],
+ "mean_colour_distance": 25.8
+}

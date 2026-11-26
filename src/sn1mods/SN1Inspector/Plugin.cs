@@ -166,7 +166,7 @@ namespace SN1Inspector
             switch (verb)
             {
                 case "help":
-                    return "OK verbs: look <yaw> <pitch> | cam | dumpterrain <radius> <file> | help pos biome batch teleport x y z | near <radius> [max] | newgame creative | skipintro | shot <file> | quit";
+                    return "OK verbs: capture <name> | hud on|off | waterbiomes <file> | look <yaw> <pitch> | cam | dumpterrain <radius> <file> | help pos biome batch teleport x y z | near <radius> [max] | newgame creative | skipintro | shot <file> | quit";
                 case "pos": NeedIngame(); return "OK " + PosStr();
                 case "biome": NeedIngame(); return "OK " + BiomeStr();
                 case "batch": NeedIngame(); return "OK " + BatchStr();
@@ -214,6 +214,23 @@ namespace SN1Inspector
                 case "cam": NeedIngame(); return CamInfo();
                 case "chunkinfo": NeedIngame(); return ChunkInfo();
                 case "dumpterrain": NeedIngame(); return DumpTerrain(a);
+                case "waterbiomes": NeedIngame(); return WaterBiomes(a);
+                case "hud":
+                    {
+                        // hud off = HideForScreenshots.Hide(Mask|HUD|ViewModel) (helmet mask, HUD, arms/tool); hud on = Hide(None) restores all.
+                        if (a.Length < 1) return "ERR usage: hud on|off";
+                        bool off = a[0].ToLowerInvariant() == "off";
+                        HideForScreenshots.Hide(off ? (HideForScreenshots.HideType.Mask | HideForScreenshots.HideType.HUD | HideForScreenshots.HideType.ViewModel) : HideForScreenshots.HideType.None);
+                        return "OK hud " + (off ? "hidden" : "shown");
+                    }
+                case "capture":
+                    {
+                        // capture <name>: hide HUD, write <name>.json (camera pose, fov, biome, water settings at the camera), screenshot <name>.png, restore HUD.
+                        NeedIngame();
+                        string name = a.Length > 0 ? Path.GetFileNameWithoutExtension(a[0]) : "capture_" + DateTime.Now.ToString("yyyyMMdd_HHmmss", IC);
+                        StartCoroutine(CaptureCo(pendingId, name));
+                        return null;
+                    }
                 case "quit":
                     Out_Quit();
                     return "OK quitting (Application.Quit, no save)";
@@ -373,6 +390,132 @@ namespace SN1Inspector
                 sb.Append("] ");
             }
             return sb.ToString();
+        }
+
+
+        // ---- water / biome look --------------------------------------------
+        static string J(string v) { return "\"" + (v ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"") + "\""; }
+        static string Jf(float v) { return v.ToString("R", IC); }
+        static string Jv(Vector3 v) { return "[" + Jf(v.x) + "," + Jf(v.y) + "," + Jf(v.z) + "]"; }
+        static string Jc(Color c) { return "[" + Jf(c.r) + "," + Jf(c.g) + "," + Jf(c.b) + "," + Jf(c.a) + "]"; }
+
+        static string SettingsJson(WaterscapeVolume.Settings s)
+        {
+            Vector4 es = s.GetExtinctionAndScatteringCoefficients(); Vector4 em = s.GetEmissive();
+            Color sl = s.scatteringColor.linear;
+            return "{\"absorption\":" + Jv(s.absorption) + ",\"scattering\":" + Jf(s.scattering) + ",\"scatteringColor\":" + Jc(s.scatteringColor)
+                + ",\"murkiness\":" + Jf(s.murkiness) + ",\"emissive\":" + Jc(s.emissive) + ",\"emissiveScale\":" + Jf(s.emissiveScale)
+                + ",\"startDistance\":" + Jf(s.startDistance) + ",\"sunlightScale\":" + Jf(s.sunlightScale) + ",\"ambientScale\":" + Jf(s.ambientScale)
+                + ",\"temperature\":" + Jf(s.temperature)
+                + ",\"derived_extinction_per_m\":" + Jv(new Vector3(es.x, es.y, es.z)) + ",\"derived_scattering_per_m\":" + Jf(es.w)
+                + ",\"derived_scattering_rgb_per_m\":" + Jv(new Vector3(sl.r * es.w, sl.g * es.w, sl.b * es.w))
+                + ",\"derived_emissive\":" + Jv(new Vector3(em.x, em.y, em.z)) + "}";
+        }
+
+        // Public simple-typed fields of a component, by reflection (global water/sky scalars not mapped by name yet).
+        static string FieldsJson(object o)
+        {
+            if (o == null) return "null";
+            var sb = new StringBuilder("{");
+            bool first = true;
+            foreach (var f in o.GetType().GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+            {
+                object v; try { v = f.GetValue(o); } catch { continue; }
+                string js;
+                if (v is float) js = Jf((float)v);
+                else if (v is int || v is bool) js = v.ToString().ToLowerInvariant();
+                else if (v is Vector3) js = Jv((Vector3)v);
+                else if (v is Color) js = Jc((Color)v);
+                else if (v is string || (v != null && v.GetType().IsEnum)) js = J(v.ToString());
+                else continue;
+                sb.Append((first ? "" : ",") + J(f.Name) + ":" + js); first = false;
+            }
+            return sb.Append("}").ToString();
+        }
+
+        static string ColliderJson(Collider c)
+        {
+            if (c == null) return "null";
+            Transform t = c.transform;
+            string sh = "{\"type\":" + J(c.GetType().Name) + ",\"enabled\":" + c.enabled.ToString().ToLowerInvariant()
+                + ",\"pos\":" + Jv(t.position) + ",\"euler\":" + Jv(t.eulerAngles) + ",\"lossyScale\":" + Jv(t.lossyScale)
+                + ",\"boundsMin\":" + Jv(c.bounds.min) + ",\"boundsMax\":" + Jv(c.bounds.max);
+            var b = c as BoxCollider; if (b != null) sh += ",\"center\":" + Jv(b.center) + ",\"size\":" + Jv(b.size);
+            var s = c as SphereCollider; if (s != null) sh += ",\"center\":" + Jv(s.center) + ",\"radius\":" + Jf(s.radius);
+            var cp = c as CapsuleCollider; if (cp != null) sh += ",\"center\":" + Jv(cp.center) + ",\"radius\":" + Jf(cp.radius) + ",\"height\":" + Jf(cp.height) + ",\"direction\":" + cp.direction;
+            var m = c as MeshCollider; if (m != null) sh += ",\"mesh\":" + J(m.sharedMesh != null ? m.sharedMesh.name : "null");
+            return sh + "}";
+        }
+
+        // waterbiomes <file>: every WaterBiomeManager.biomeSettings entry, the loaded AtmosphereVolumes (streamed: only those near the
+        // player exist), the global WaterscapeVolume scalars, and the biome + settings at the camera. JSON.
+        string WaterBiomes(string[] a)
+        {
+            if (a.Length < 1) return "ERR usage: waterbiomes <file>";
+            string path = Path.IsPathRooted(a[0]) ? a[0] : Path.Combine(io, Path.GetFileName(a[0]));
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            var wbm = WaterBiomeManager.main;
+            if (wbm == null) return "ERR no WaterBiomeManager.main";
+            var sb = new StringBuilder("{\n");
+            sb.Append("\"utc\":" + J(DateTime.UtcNow.ToString("o", IC)) + ",\n\"camera\":" + CameraJson() + ",\n");
+            sb.Append("\"biomeSettings\":[\n");
+            for (int i = 0; i < wbm.biomeSettings.Count; i++)
+            {
+                var bs = wbm.biomeSettings[i];
+                sb.Append((i > 0 ? ",\n" : "") + "{\"index\":" + i + ",\"name\":" + J(bs.name) + ",\"sky\":" + J(bs.skyPrefab != null ? bs.skyPrefab.name : null) + ",\"settings\":" + SettingsJson(bs.settings) + "}");
+            }
+            sb.Append("\n],\n\"atmosphereVolumes\":[\n");
+            int nv = 0;
+            var ad = AtmosphereDirector.main;
+            if (ad != null && ad.GetVolumes() != null)
+                foreach (AtmosphereVolume v in ad.GetVolumes())
+                {
+                    if (v == null) continue;
+                    sb.Append((nv++ > 0 ? ",\n" : "") + "{\"name\":" + J(v.name) + ",\"overrideBiome\":" + J(v.overrideBiome) + ",\"priority\":" + v.priority
+                        + ",\"highDetail\":" + v.highDetail.ToString().ToLowerInvariant() + ",\"affectsVisuals\":" + v.affectsVisuals.ToString().ToLowerInvariant()
+                        + ",\"fogColor\":" + Jc(v.fogColor) + ",\"fogStart\":" + Jf(v.fogStartDistance) + ",\"fogMax\":" + Jf(v.fogMaxDistance)
+                        + ",\"collider\":" + ColliderJson(v.GetComponent<Collider>()) + "}");
+                }
+            sb.Append("\n],\n");
+            var wv = UnityEngine.Object.FindObjectOfType<WaterscapeVolume>();
+            sb.Append("\"waterscapeVolume\":" + FieldsJson(wv) + "\n}\n");
+            File.WriteAllText(path, sb.ToString());
+            return "OK biomeSettings=" + wbm.biomeSettings.Count + " atmosphereVolumes=" + nv + " file=" + path;
+        }
+
+        string CameraJson()
+        {
+            Camera c = Camera.main; var p = Player.main;
+            if (c == null) return "null";
+            Vector3 cp = c.transform.position, e = c.transform.eulerAngles;
+            float pitch = e.x > 180f ? 360f - e.x : -e.x; // + = up
+            float hf = 2f * Mathf.Atan(Mathf.Tan(c.fieldOfView * Mathf.Deg2Rad * 0.5f) * c.aspect) * Mathf.Rad2Deg;
+            string biome = "", biomeVis = "";
+            WaterscapeVolume.Settings s = null; bool found = false;
+            var wbm = WaterBiomeManager.main;
+            if (wbm != null) { biome = wbm.GetBiome(cp, false); biomeVis = wbm.GetBiome(cp, true); found = wbm.GetSettings(cp, true, out s); }
+            return "{\"pos\":" + Jv(cp) + ",\"euler\":" + Jv(e) + ",\"yaw\":" + Jf(e.y) + ",\"pitch_up\":" + Jf(pitch) + ",\"roll\":" + Jf(e.z)
+                + ",\"fovV\":" + Jf(c.fieldOfView) + ",\"fovH\":" + Jf(hf) + ",\"aspect\":" + Jf(c.aspect) + ",\"screen\":[" + Screen.width + "," + Screen.height + "]"
+                + ",\"player\":" + (p != null ? Jv(p.transform.position) : "null") + ",\"depth\":" + (p != null ? Jf(p.GetDepth()) : "null")
+                + ",\"playerBiome\":" + J(p != null ? p.GetBiomeString() : null) + ",\"biome\":" + J(biome) + ",\"biomeVisual\":" + J(biomeVis)
+                + ",\"settingsFound\":" + found.ToString().ToLowerInvariant() + ",\"settings\":" + (s != null ? SettingsJson(s) : "null")
+                + ",\"dayScalar\":" + (DayNightCycle.main != null ? Jf(DayNightCycle.main.GetDayScalar()) : "null") + "}";
+        }
+
+        // capture <name>: HUD/mask/arms hidden for the shot, then restored. Files land in the io folder.
+        System.Collections.IEnumerator CaptureCo(string id, string name)
+        {
+            HideForScreenshots.Hide(HideForScreenshots.HideType.Mask | HideForScreenshots.HideType.HUD | HideForScreenshots.HideType.ViewModel);
+            for (int i = 0; i < 3; i++) yield return null;
+            string png = Path.Combine(io, name + ".png"), meta = Path.Combine(io, name + ".json");
+            string cj = null;
+            try { cj = CameraJson(); File.WriteAllText(meta, "{\"name\":" + J(name) + ",\"utc\":" + J(DateTime.UtcNow.ToString("o", IC)) + ",\"camera\":" + cj + "}\n"); }
+            catch (Exception e) { Out(id, "ERR meta: " + e.Message); }
+            ScreenCapture.CaptureScreenshot(png);
+            for (int i = 0; i < 5; i++) yield return null;
+            yield return new WaitForEndOfFrame();
+            HideForScreenshots.Hide(HideForScreenshots.HideType.None);
+            Out(id, "OK captured " + name + ".png + " + name + ".json " + (cj ?? ""));
         }
 
         void Out_Quit() { Logger.LogInfo("quit command: Application.Quit()"); Application.Quit(); }

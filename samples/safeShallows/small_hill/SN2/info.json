@@ -1,0 +1,44 @@
+{
+ "game": "SN2",
+ "shot": "small_hill",
+ "biome": "safeShallows",
+ "image": "shot.png",
+ "capture_time_utc": "2026-11-26T10:07:36Z",
+ "capture_time_local": "2026-11-26T18:07:36+08:00",
+ "world": "L_SN2World",
+ "game_build": "131439 2026-09-18T20:24:32",
+ "run": "<Workspace>/autotest/20261126_180611_sn1cmp_shallows_env",
+ "plan": "sn1cmp_shallows_env",
+ "target": {
+  "name": "small_hill",
+  "at": [
+   -11511,
+   -2871,
+   -213
+  ],
+  "views": "fixed",
+  "yaw": 147.49,
+  "pitch": -31.65,
+  "fov": 91.49,
+  "o2": true
+ },
+ "measured": {
+  "pawn": [
+   -11511.0,
+   -2871.0,
+   -292.7
+  ],
+  "camera": [
+   -11511.0,
+   -2871.0,
+   -268.3
+  ],
+  "yaw": 148.32,
+  "pitch": -30.63
+ },
+ "image_size": [
+  1920,
+  1080
+ ],
+ "notes": ""
+}
