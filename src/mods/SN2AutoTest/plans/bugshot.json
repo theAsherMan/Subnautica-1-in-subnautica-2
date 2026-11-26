@@ -1,0 +1,10 @@
+{
+ "name": "bugshot", "mods": ["SN2BugShot"],
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "spawn", "cmd": "bugshot", "cmdWait": 4},
+  {"name": "uw_pod", "offset": [0, 0, -200], "cmd": "bugshot", "cmdWait": 4}
+ ],
+ "settleSeconds": 15
+}

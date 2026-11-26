@@ -19,6 +19,16 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/UnrealType.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/BorderSlot.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/HorizontalBoxSlot.h"
+#include "Components/OverlaySlot.h"
+#include "Components/PanelWidget.h"
+#include "Components/VerticalBoxSlot.h"
+#include "Components/Widget.h"
+#include "K2Node_ComponentBoundEvent.h"
+#include "WidgetBlueprint.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, SN2GraphTools);
 
@@ -397,4 +407,173 @@ void USN2GraphLibrary::NotifyPropertyChanged(UObject* Object, FName PropertyName
 	Object->PreEditChange(Prop);
 	FPropertyChangedEvent Ev(Prop, EPropertyChangeType::ValueSet);
 	Object->PostEditChangeProperty(Ev);
+}
+
+// ---- UMG widget blueprint building ----
+
+UWidget* USN2GraphLibrary::AddWidget(UBlueprint* WidgetBlueprint, UClass* WidgetClass, FName Name, UWidget* Parent)
+{
+	UWidgetBlueprint* WBP = Cast<UWidgetBlueprint>(WidgetBlueprint);
+	if (!WBP || !WBP->WidgetTree || !WidgetClass || !WidgetClass->IsChildOf(UWidget::StaticClass()))
+	{
+		return nullptr;
+	}
+	WBP->Modify();
+	UWidget* W = WBP->WidgetTree->ConstructWidget<UWidget>(WidgetClass, Name);
+	if (!W)
+	{
+		return nullptr;
+	}
+	if (!Parent)
+	{
+		if (WBP->WidgetTree->RootWidget)
+		{
+			UE_LOG(LogSN2Graph, Warning, TEXT("AddWidget %s: root already exists"), *Name.ToString());
+			return nullptr;
+		}
+		WBP->WidgetTree->RootWidget = W;
+	}
+	else
+	{
+		UPanelWidget* P = Cast<UPanelWidget>(Parent);
+		if (!P || !P->AddChild(W))
+		{
+			UE_LOG(LogSN2Graph, Warning, TEXT("AddWidget %s: parent %s cannot take a child"), *Name.ToString(), *Parent->GetName());
+			return nullptr;
+		}
+	}
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
+	return W;
+}
+
+UWidget* USN2GraphLibrary::FindWidget(UBlueprint* WidgetBlueprint, FName Name)
+{
+	UWidgetBlueprint* WBP = Cast<UWidgetBlueprint>(WidgetBlueprint);
+	return (WBP && WBP->WidgetTree) ? WBP->WidgetTree->FindWidget(Name) : nullptr;
+}
+
+bool USN2GraphLibrary::SetWidgetIsVariable(UWidget* Widget, bool bIsVariable)
+{
+	if (!Widget)
+	{
+		return false;
+	}
+	Widget->Modify();
+	Widget->bIsVariable = bIsVariable;
+	return true;
+}
+
+bool USN2GraphLibrary::SetCanvasSlot(UWidget* Widget, FVector2D AnchorMin, FVector2D AnchorMax, FVector2D Position, FVector2D Size, FVector2D Alignment, int32 ZOrder)
+{
+	UCanvasPanelSlot* S = Widget ? Cast<UCanvasPanelSlot>(Widget->Slot) : nullptr;
+	if (!S)
+	{
+		return false;
+	}
+	S->Modify();
+	S->SetAnchors(FAnchors(AnchorMin.X, AnchorMin.Y, AnchorMax.X, AnchorMax.Y));
+	S->SetPosition(Position);
+	S->SetSize(Size);
+	S->SetAlignment(Alignment);
+	S->SetZOrder(ZOrder);
+	return true;
+}
+
+bool USN2GraphLibrary::SetBoxSlot(UWidget* Widget, FMargin Padding, float FillValue, int32 HAlign, int32 VAlign)
+{
+	if (!Widget || !Widget->Slot)
+	{
+		return false;
+	}
+	const EHorizontalAlignment H = HAlign == 1 ? HAlign_Left : HAlign == 2 ? HAlign_Center : HAlign == 3 ? HAlign_Right : HAlign_Fill;
+	const EVerticalAlignment V = VAlign == 1 ? VAlign_Top : VAlign == 2 ? VAlign_Center : VAlign == 3 ? VAlign_Bottom : VAlign_Fill;
+	FSlateChildSize Size = FillValue > 0.f ? FSlateChildSize(ESlateSizeRule::Fill) : FSlateChildSize(ESlateSizeRule::Automatic);
+	Size.Value = FillValue > 0.f ? FillValue : 1.f;
+	Widget->Slot->Modify();
+	if (UVerticalBoxSlot* VS = Cast<UVerticalBoxSlot>(Widget->Slot))
+	{
+		VS->SetPadding(Padding); VS->SetHorizontalAlignment(H); VS->SetVerticalAlignment(V); VS->SetSize(Size);
+		return true;
+	}
+	if (UHorizontalBoxSlot* HS = Cast<UHorizontalBoxSlot>(Widget->Slot))
+	{
+		HS->SetPadding(Padding); HS->SetHorizontalAlignment(H); HS->SetVerticalAlignment(V); HS->SetSize(Size);
+		return true;
+	}
+	if (UOverlaySlot* OS = Cast<UOverlaySlot>(Widget->Slot))
+	{
+		OS->SetPadding(Padding); OS->SetHorizontalAlignment(H); OS->SetVerticalAlignment(V);
+		return true;
+	}
+	if (UBorderSlot* BS = Cast<UBorderSlot>(Widget->Slot))
+	{
+		BS->SetPadding(Padding); BS->SetHorizontalAlignment(H); BS->SetVerticalAlignment(V);
+		return true;
+	}
+	return false;
+}
+
+TArray<FString> USN2GraphLibrary::DescribeWidgetTree(UBlueprint* WidgetBlueprint)
+{
+	TArray<FString> Out;
+	UWidgetBlueprint* WBP = Cast<UWidgetBlueprint>(WidgetBlueprint);
+	if (!WBP || !WBP->WidgetTree)
+	{
+		Out.Add(TEXT("MISSING widget tree"));
+		return Out;
+	}
+	TFunction<void(UWidget*, int32)> Walk = [&](UWidget* W, int32 Depth)
+	{
+		if (!W)
+		{
+			return;
+		}
+		Out.Add(FString::Printf(TEXT("%d %s : %s var=%d parent=%s slot=%s"), Depth, *W->GetName(), *W->GetClass()->GetName(), W->bIsVariable ? 1 : 0,
+			W->GetParent() ? *W->GetParent()->GetName() : TEXT("-"), W->Slot ? *W->Slot->GetClass()->GetName() : TEXT("-")));
+		if (UPanelWidget* P = Cast<UPanelWidget>(W))
+		{
+			for (int32 i = 0; i < P->GetChildrenCount(); ++i)
+			{
+				Walk(P->GetChildAt(i), Depth + 1);
+			}
+		}
+	};
+	Walk(WBP->WidgetTree->RootWidget, 0);
+	return Out;
+}
+
+UEdGraphNode* USN2GraphLibrary::AddWidgetBoundEvent(UBlueprint* WidgetBlueprint, FName WidgetName, FName DelegateName, FString& OutMessage)
+{
+	UWidgetBlueprint* WBP = Cast<UWidgetBlueprint>(WidgetBlueprint);
+	UWidget* W = FindWidget(WidgetBlueprint, WidgetName);
+	if (!WBP || !W)
+	{
+		OutMessage = TEXT("widget not found");
+		return nullptr;
+	}
+	FKismetEditorUtilities::CompileBlueprint(WBP);
+	FObjectProperty* Prop = WBP->SkeletonGeneratedClass ? FindFProperty<FObjectProperty>(WBP->SkeletonGeneratedClass, WidgetName) : nullptr;
+	if (!Prop)
+	{
+		Prop = WBP->GeneratedClass ? FindFProperty<FObjectProperty>(WBP->GeneratedClass, WidgetName) : nullptr;
+	}
+	if (!Prop)
+	{
+		OutMessage = TEXT("no member variable for widget (is it IsVariable and compiled?)");
+		return nullptr;
+	}
+	if (!FindFProperty<FMulticastDelegateProperty>(W->GetClass(), DelegateName))
+	{
+		OutMessage = TEXT("delegate not found on widget class");
+		return nullptr;
+	}
+	if (const UK2Node_ComponentBoundEvent* Existing = FKismetEditorUtilities::FindBoundEventForComponent(WBP, DelegateName, WidgetName))
+	{
+		OutMessage = TEXT("already existed");
+		return const_cast<UK2Node_ComponentBoundEvent*>(Existing);
+	}
+	FKismetEditorUtilities::CreateNewBoundEventForClass(W->GetClass(), DelegateName, WBP, Prop);
+	const UK2Node_ComponentBoundEvent* N = FKismetEditorUtilities::FindBoundEventForComponent(WBP, DelegateName, WidgetName);
+	OutMessage = N ? TEXT("ok") : TEXT("CreateNewBoundEventForClass produced no node");
+	return const_cast<UK2Node_ComponentBoundEvent*>(N);
 }

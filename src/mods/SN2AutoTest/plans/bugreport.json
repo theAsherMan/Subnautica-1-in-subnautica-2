@@ -1,0 +1,34 @@
+{
+ "name": "bugreport",
+ "mods": ["SN2BugShot"],
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "submit", "views": "script", "steps": [
+   {"state": {"open": "false", "paused": "false"}},
+   {"time": "advancing", "over": 2},
+   {"cmd": "bugreport_open", "wait": 3},
+   {"state": {"open": "true", "phase": "open", "paused": "true", "cursor": "true"}},
+   {"time": "frozen", "over": 2},
+   {"shot": "popup_empty"},
+   {"cmd": "bugreport_type", "args": "Test report: the water looks wrong here.", "wait": 1},
+   {"state": {"text": "Test report: the water looks wrong here."}},
+   {"shot": "popup_typed"},
+   {"cmd": "bugreport_submit", "wait": 2},
+   {"state": {"open": "false", "paused": "false", "phase": "idle"}},
+   {"time": "advancing", "over": 2},
+   {"shot": "after_submit"}
+  ]},
+  {"name": "cancel", "views": "script", "steps": [
+   {"cmd": "bugreport_open", "wait": 3},
+   {"state": {"open": "true", "paused": "true"}},
+   {"cmd": "bugreport_type", "args": "This text must be discarded.", "wait": 1},
+   {"shot": "popup_cancel"},
+   {"cmd": "bugreport_cancel", "wait": 2},
+   {"state": {"open": "false", "paused": "false"}},
+   {"time": "advancing", "over": 2},
+   {"shot": "after_cancel"}
+  ]}
+ ],
+ "settleSeconds": 15
+}
