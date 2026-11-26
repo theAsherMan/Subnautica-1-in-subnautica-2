@@ -15,7 +15,7 @@ bundle — outside git), `<ModkitDir>` = `SN2_MODKIT_DIR`, `<RepoDir>` = this re
 If it is missing, ask the user for the paths and create it.
 
 ## Where the code lives
-- Lua mods: `src/mods/<Mod>/Scripts/main.lua` (SN2WorldProbe, SN2IntroProbe). Terrain is done by the modkit mod `SN2Terrain` (`src/modkit`); the old Lua terrain mod SN2TerrainEdit was deleted 2026-11-16 (recover with `git show e30f3d0:src/mods/SN2TerrainEdit/Scripts/main.lua`). Shell/Python tools: `src/tools/` (all source `src/tools/sn2_env.sh` for paths).
+- Lua mods: `src/mods/<Mod>/Scripts/main.lua` (SN2BugShot = F1 bug report, SN2Tadpole = F4, SN2AutoTest + SN2Census = test-only; old SN2WorldProbe/SN2IntroProbe/SN2WorldLevel deleted 2026-11-23, recover with `git show 40820f3:src/mods/<Mod>/Scripts/main.lua`). Terrain is done by the modkit mod `SN2Terrain` (`src/modkit`); the old Lua terrain mod SN2TerrainEdit was deleted 2026-11-16 (recover with `git show e30f3d0:src/mods/SN2TerrainEdit/Scripts/main.lua`). Shell/Python tools: `src/tools/` (all source `src/tools/sn2_env.sh` for paths).
   `src/tools/bin`, `downloads`, `sn2_packaged_files.txt` are gitignored. Code map: `research/07_mods_reference.md`.
 - Launch: `bash src/tools/launch_game.sh` (adds `-OverridePlayerStart=Shallows` = intro skipped, empty hotbar; no mod involved).
 - Install: `bash src/tools/install_mod.sh <Mod>`. UE4SS reads Lua only at game launch — a full quit + relaunch is required
@@ -51,6 +51,12 @@ The `research/` folder is the project's memory between sessions. Update it **as 
 - Every claim carries a status: **VERIFIED (date)** = seen in game, **LOGGED (date)** = log says it ran but effect unconfirmed, **UNTESTED**, **FAILED (date)** with the reason.
   Only upgrade a status with new evidence; never mark something VERIFIED on log output alone.
 - Failures and dead ends are worth recording (what was tried, the exact error text, why it failed) so they are not retried blindly.
+- **Condense once solved.** While a problem is open, keep the full working notes. When it is solved, or an approach is replaced:
+  - Rewrite its section as the current recipe or state, with statuses.
+  - Shorten each failed attempt to one line in a "Dead ends" list: date, what was tried, exact error or symptom, why it failed (keep **FAILED (date)**).
+  - Delete run-by-run narratives, superseded plans and "Update:" / "superseded by" chains. Keep a run ID only where it is the evidence for a current claim.
+  - Keep section headings that other files link to, or update those links.
+  - Removed text stays in git history; when it may still help, add a pointer such as `git show <commit>:research/<file>`.
 - When a test changes what works, update the "State of play" table and "Next steps" in `00_overview.md`.
 - Write for the implementer: exact paths, class/function names, signatures, code snippets, numbers. No narrative for the tester.
 - Raw dumps go to `<Workspace>\reports\`; crash dumps to `<Workspace>\crashes\` (record cause + rule in `01_runbook.md`).

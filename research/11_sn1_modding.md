@@ -104,3 +104,7 @@ Position x=-1245.13 y=-252.16 z=209.50, depth readout 252 m.
 - up (pitch 89): uniform dark blue water with a slightly lighter blue centre (surface is 252 m away), tool lower right.
 - down (pitch -89): sandy seabed with ripple light patterns, bush flora, small fish shoals, player fin and hands visible.
 - The 8 yaw shots all differ in content (checked by eye). A PDA tutorial text box overlays the lower middle in most shots (different text per shot); a Creative hotbar and "Power: 100 %" are always shown. Not removed from the shots; hide HUD/PDA text before a pixel comparison with SN2.
+
+### Origin shots run (2026-11-23)
+- Script `src/tools/sn1_scripts/origin_shots.sn1s`: `teleport 40 -18 -10` (the SN1 side of the origin cube plan), 8 yaws + up + down, shots named `origin_*.png`. Run `sn1_runs/20261123_170955`: DONE, 138 s, timeout 360 s / check 120 s, 10 shots, no test slot left. VERIFIED (2026-11-23, run folder, shots viewed).
+- Viewpoint is 9.1 m above the seabed, 18-19 m deep, about 41 m SSW of the lifepod. Shots show a rock slab with a spire (yaw 270), a floating rock with pink coral (yaw 0), plants and fish, a tube-shaped prefab on the seabed (down), blue sky with clouds (up).

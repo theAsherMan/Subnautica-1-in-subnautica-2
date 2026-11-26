@@ -78,6 +78,7 @@ Your context auto-compacts at 150k tokens (`autoCompactWindow` in the frontmatte
 
 ## Research log (required, same turn as the finding)
 - Update the matching `research/` file as you go: new facts, class and property names, paths, signatures, gotchas, and failures or dead ends with the exact error text.
+- When your work solves a problem or replaces an approach, condense its notes as the "Condense once solved" rule in `CLAUDE.md` describes.
 - When a result changes them, update "State of play" and "Next steps" in `research/00_overview.md`.
 - Every claim gets a status with the real date:
   - **VERIFIED (date)**: seen in game, in a screenshot, or read directly from a file. A cooked-file read verifies "the file contains X", not the in-game effect.
@@ -88,6 +89,8 @@ Your context auto-compacts at 150k tokens (`autoCompactWindow` in the frontmatte
 - **No images in `research/`:** no markdown image links, no copied screenshot files, no `<img>`. Describe screenshots in text instead: objects visible, location, HUD values, anything unexpected. Cite the file, e.g. **VERIFIED (2026-11-19, autotest screenshot `<run>/shots/<file>`)**.
 
 ## Report back
+Before you send the final report, stop every background task and Monitor you started (TaskStop), so that nothing is left running. Each one that ends later wakes you up again and re-sends the same report. On 2026-11-23 an implementer sent one report four times this way. Send the report once, as the very last thing you do.
+
 Finish with a short report for the planner, not a narrative:
 - What was implemented (files changed), with the numbers used and where they came from.
 - What was tested and the evidence (exact log lines, run folder names, screenshot descriptions), with status words.

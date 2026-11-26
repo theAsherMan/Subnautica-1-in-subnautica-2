@@ -52,3 +52,6 @@ Macros: `RunMacro <name>` runs `Content\Macros\<name>.txt` (shipped: `Superman`,
 ## Save / session
 `SaveGame`, `LoadGame`, `AutoSaveGame`, `ToggleAutoSave`, `SetAutoSaveDuration`, `NewGame`, `NewGameOfMode`, `ContinueGame`, `ClearSaves`, `OpenSavesFolder`, `PlayerStart`.
 Dangerous (do not run): `CrashClient*`, `CrashServer*`, `ForceProcessExit`, `KickPlayer`.
+
+## ExecuteConsoleCommand HighResShot works in a normal save (2026-11-23)
+`KismetSystemLibrary:ExecuteConsoleCommand(world, "HighResShot 1", pc)` from Lua (SN2BugShot) writes `%LOCALAPPDATA%/Subnautica2/Saved/Screenshots/Windows/HighresScreenshot0000N.png` (1920x1080) **VERIFIED (2026-11-23, autotest run 20261123_174947_bugshot; image shows the lifepod interior and hatch)**. The file appears asynchronously (a few hundred ms), so poll for it. Other console commands stay disabled in the test save.

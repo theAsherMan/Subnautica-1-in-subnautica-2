@@ -33,6 +33,44 @@ Spawn `BP_UWEWaterBiomeRegionActor_C`; set `WaterBoxVolumeComponent.BoxExtent` t
 Alternative cheap mood: `BP_Fog_Sphere_C` (Albedo/Extinction/Emissive/Scale) and a local `PostProcessVolume`.
 Global: `BP_UWESky_C` — `SetTimeOfDay "HH:MM"`, `SetCurrentWeather <DA name>` from the console, or set `TimeOfDay`/weather refs in Lua.
 
+### Enums, related classes and the SN1 transfer tools (2026-11-24, from `<ModkitDir>/Subnautica2-Project/Automation/Headers.hpp` ~line 140320)
+- `EBiomeRegionType` {BRT_Water=0, BRT_MaskedWater=1, BRT_Air=2}; `EBiomeRegionVolumeType` {BRVT_Brush=0, BRVT_Shape=1}; `EBiomeBlendType` {XYZ=0, XYSeperateZ=1}. **VERIFIED (2026-11-24, header)**
+- `AUWEWaterBiomeRegionActor` functions: `RecreateMaterials`, `SetAirLightSettings`, `SetWaterFogOpacityWeight`, `SetupAirVolume`. Components also
+  `WaterStaticMeshComponent`, `InternalVolumeModel/Mesh`, `InternalWaterPlaneMesh`. `UUWEBiomeTrackerSubsystem{SkyActor, Volumes, BiomeMaterialParameterCollection,
+  BiomeNiagaraParameterCollection}`; `UUWEBiomeMapComponent{CaptureRadius, RenderTarget, DefaultVolumeSettings, WorldToBiomeMapScaleAndOffset}` (on BP_Ocean);
+  `UUWEWaterBiomeRegionSettings{MaterialBiome, MaterialBiomeMasked, MaterialAir}`; `FUWEWaterLightSettingsAdvanced{BiomeAlbedoPower, BiomeAlbedoTint, BiomeEmissive,
+  BiomeAlbedoDesaturation, BiomeAlbedoBrightness}`. **VERIFIED (2026-11-24, header)**
+- The modkit's `Plugins/UWEWater` holds only `UWEWater.uplugin` (no C++, no `.usf/.ush` shaders) **VERIFIED (2026-11-24, file search)**, so the meaning of the
+  WaterLightSettings numbers cannot be read from source: the SN1 -> SN2 conversion is calibrated empirically from SN1/SN2 screenshot pairs.
+- `WaterLightSettings` is not exposed to Python; set it through T3D text (EDIT COPY, add `WaterLightSettings=(...)` to the `Begin Object Name="BiomeVolumeComponent"`
+  property block, destroy, EDIT PASTE). Proven on the ocean region in `sn2world_map.py` `paste_region_with_water_light` (2026-11-19).
+- Transfer pipeline: `src/tools/sn1_biome_transfer.py` (SN1 biome map -> boxes + converted settings, see `10` §6) ->
+  `src/modkit/scripts/sn1biome_regions.py` (editor; one `/Game/Blueprints/World/Water/BP_UWEWaterBiomeRegionActor.BP_UWEWaterBiomeRegionActor_C` per box in
+  L_SN2World, scale 1, tags `SN1Biome` + `SN1Biome_<biome>`, folder `SN1Biome/<biome>`; BoxExtent, volume type and WaterLightSettings all go in through one
+  T3D copy/paste of all regions; save + reload check) -> `tools/cook_install.sh SN2EmptyWorld 2`. Editor side **VERIFIED (2026-11-26)**: 42 Safe Shallows
+  regions saved, each re-copied T3D has its own `BoxExtent` and the converted WaterLightSettings, before and after a reload. Effect in game: **FAILED
+  (2026-11-26, autotest screenshots, run `20261126_175137_sn1cmp_shallows`)**: no visible change, water still orange/brown inside the Safe Shallows
+  boxes (details `10` §6). The regions ARE loaded at runtime with the converted WaterLightSettings **VERIFIED (2026-11-26, envprobe, run `20261126_180611_sn1cmp_shallows_env`)**,
+  and the SN2 ocean region is blue too, so the cause is the render path, not the values (`10` §6). Region priority and seams: UNTESTED.
+- Fresh `BP_UWEWaterBiomeRegionActor_C` as spawned in the editor **VERIFIED (2026-11-26, T3D dump `<Workspace>/reports/lmain_biome_regions/fresh_water_region.t3d`)**:
+  - Components: `BiomeVolumeComponent` (UWEWater.UWEBiomeVolumeComponent), `PostProcessComponent` (UWEBiomePostProcessComponent), `RootComponent`,
+    `WaterBoxVolumeComponent` (**UWEVolumeTracker.BoxVolumeComponent**: a ShapeComponent, *not* an engine `BoxComponent`, so `get_components_by_class(unreal.BoxComponent)`
+    misses it; find it by name), `WaterStaticMeshComponent`, `WaterVolumeComponent` (UWEVolumeTracker.BrushVolumeComponent).
+  - BoxExtent = 0 and bounds = 0. The modkit C++ is a stub: `call_method("SetBoxExtent", (vec, True))` runs but changes nothing, and `GetUnscaledBoxExtent` always
+    returns 0. Set `BoxExtent=(X=..,Y=..,Z=..)` as a line in the `Begin Object Name="WaterBoxVolumeComponent"` property block of the T3D; it exports back after a paste and a reload.
+  - Not exposed to Python (`get_editor_property` -> "Failed to find property"): `biome_region_volume_type`, `biome_region_type`, `is_ocean`, `priority`; there is
+    no `unreal.BiomeRegionVolumeType` enum.
+  - The actor-level line reads `BiomeRegionVolumeType=BRVT_Brush` after a spawn and after a level reload. After a T3D paste with `BRVT_Shape`, the line is not
+    exported at all, meaning it equals the class default. The saved .umap name table has `BRVT_Brush` but no `BRVT_Shape`, so the class default is Shape and the
+    Brush value comes from the editor's construction pass. Which one the cooked game uses: **UNTESTED** (check if the regions show no effect).
+  - There is also an actor-level `WaterLightingSettings=(...)` with every field 0 (fog distance, opacity weight, caustics...). It is left alone; the runtime
+    values read so far come from `BiomeVolumeComponent.WaterLightSettings` (`03` envprobe).
+- L_Main region probe (`src/modkit/scripts/lmain_biome_regions_probe.py`, 2026-11-26): in the editor only the ocean region is loaded:
+  `BP_UWEOceanBiomeRegionActor_C`, loc (0, 0, -5000000), scale (1e6, 1e6, 1e5), a child actor of BP_Ocean_C, so it cannot be copied. The per-area water regions
+  live in World Partition cells that are not loaded, and `unreal.WorldPartitionEditorSubsystem` does not exist in Python, so SN2's own hand-tuned per-area
+  values were not obtained. **FAILED (2026-11-26)** as a calibration source; summary in `<Workspace>/reports/lmain_biome_regions/summary.txt`.
+- Known blocker for any comparison: L_SN2World water looks dark brown/orange without blue fog (see `00` step 3.1(a)); a region's effect may be hidden by it.
+
 ## Music and ambience
 Spawn `UWEMusicVolume` and set `MusicVolumeComponent.Config` to a `UUWEMusicVolumeData` (`/Game/Data/AudioData/MusicData/DA_Music_*_Playlist`), `Priority` higher than neighbours.
 Ambience: `FMODAmbientSound` with an FMOD event (`/Game/FMOD/Events/sfx/environment/ambience/underwater/...`), or the `DA_Ambience_*` data. New audio = new FMOD Studio 2.03 bank
@@ -48,3 +86,17 @@ World-pop resources: `BP_WorldPopSpawnedTitanium_C`, `…Quartz_C` etc. are plac
 
 ## Scale reference
 Player stood at z = −240 m; Coral Gardens landscape tiles 252 m; spawn zone boxes 100 × 200 × 120 m; temperature radius 15 m; fog sphere blend 5 m; ocean body 10 km square.
+
+## Vehicles: spawning a Tadpole (2026-11-23, mod `SN2Tadpole`, run `autotest/20261123_164556_tadpole`, plan `tadpole.json`, DONE 156 s)
+- `FindFirstOf("SN2CheatManager"):Spawn("Tadpole")` spawns a real vehicle: **VERIFIED (2026-11-23)** UE4SS.log `cheat produced 1 new Tadpole actor(s)`, class `BP_Tadpole_C` (native `SN2Tadpole`, found with `FindAllOf("SN2Tadpole")`). The cheat places it near the player; `K2_SetActorLocation` + `K2_SetActorRotation` then moved it: final loc read back (-731,-951,-143), as requested.
+- Screenshot `autotest/20261123_164556_tadpole/shots/01_uw_pod_k5.png` (pawn 1 m under water at the pod, looking toward yaw -136): a white Tadpole hull with cockpit and cyan glow, partly overexposed, just under the horizon about 12 m away. **VERIFIED (2026-11-23, autotest screenshot)** that it exists and is visible. Not seen in the other yaws (k6 also shows it at the left edge).
+- Power: the actor has `BPC_PowerCell` (component), `PowerInventoryComponent`, `PowerInventoryInteraction`, `PowerCellItemType` (soft ptr on `SN2Tadpole`). Charge value NOT read (UNTESTED); enterability and driving UNTESTED (cannot be automated).
+- **Enter and drive: VERIFIED (2026-11-23, user F1 report `<Workspace>/bugshots/20261123_181716_004` `screen.png`).** The user was piloting an F4 Tadpole about 250 m from the pod at UE (-2882,24957,-6669), HUD 66 m depth. The screenshot shows:
+  - the cockpit view, with both hands on the control sticks;
+  - prompts "Exit (E)" and "Turn Lights On (mouse)";
+  - a gauge panel at the bottom right with 100 (wrench, hull) and 100 (lightning, power).
+
+  So the spawned Tadpole has full power and can be entered and driven. Persistence in a save is still UNTESTED.
+- Direct spawn fallback (`BeginDeferredActorSpawnFromClass` of `/Game/Blueprints/Vehicle/BP_Tadpole.BP_Tadpole_C`) is coded but UNTESTED (cheat worked, so it never ran).
+- L_SN2World geometry measured 2026-11-23: `BP_StaticLifepod_Surface_C` actor location (0,0,100), yaw 52.4; `BP_Ocean_C` at Z=0 (water surface); player standing inside the pod is at about Z=235.
+- Cheat state: cheat commands change only the world actor list; the Tadpole is a normal world actor (whether it persists in a save is UNTESTED).

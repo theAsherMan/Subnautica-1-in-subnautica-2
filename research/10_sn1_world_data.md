@@ -158,7 +158,7 @@ Triangle estimate (UNTESTED): roughly 16.7 km² of seafloor plus caves and islan
 
 ## 6. Biome map
 - `biomeMap.bin` = 2-byte header + 1024 × 1024 `uint8` cells, 4 m per pixel across 4096 m. Values 0–18 index `biomes.csv`. **VERIFIED (2026-11-19, file)**
-- `biomes.csv` order, 0-based (index mapping LIKELY, not confirmed in code):
+- `biomes.csv` has a header line `name`; skip it, then the order is 0-based (index mapping now confirmed by the signals.csv check below):
 
   | Index | Biome | Index | Biome |
   |---|---|---|---|
@@ -176,7 +176,100 @@ Triangle estimate (UNTESTED): roughly 16.7 km² of seafloor plus caves and islan
   - The most common value is 11 (359,220 px). This fits "void" around the edges.
   - 7, 8 and 9 never occur.
 - Deep biomes (Lost River, Lava Zones) are not in this 2D map. They come from the atmosphere volumes (§5).
-- Pixel row/column axis vs Unity x/z: UNTESTED. Check it against `signals.csv` positions and their biome column.
+- **Axis orientation: `row = floor((unity.z + 2048) / 4)`, `col = floor((unity.x + 2048) / 4)`** (pixel centre: `x = col*4 - 2046`, `z = row*4 - 2046`). All 8 flips/transposes were tested against `signals.csv`; this one matches every row whose biome is in the 2D map (10/14). The 4 misses are floatingIsland, JellyshroomCaves, lavazone and one underwaterIslands entry at the lavazone position — all volume biomes. Pixel (512, 512) = origin/lifepod = safeShallows. **VERIFIED (2026-11-24, file + signals.csv)**
+  ```python
+  m = np.frombuffer(open(B + "biomeMap.bin", "rb").read()[2:], dtype=np.uint8).reshape(1024, 1024)  # m[row=z, col=x]
+  names = [l.strip() for l in open(B + "biomes.csv").read().splitlines()[1:] if l.strip()]
+  ```
+- How SN1 picks the biome at a point (decompiled `WaterBiomeManager.GetBiome`): if an `AtmosphereVolume` encloses the point, its `overrideBiome` wins; otherwise `LargeWorld.GetBiome(pos)` reads this 2D map. So the map is only the open-water fallback. **VERIFIED (2026-11-24, decompiled code)**
+- **Safe Shallows (value 0), 4-connected components** (Unity metres; computed from the file 2026-11-24):
+
+  | Component | Pixels | Area | x range | z range | Centroid (x, z) |
+  |---|---|---|---|---|---|
+  | Main (contains origin) | 18,827 | 0.301 km² | -248 … 536 | -508 … 388 | (51, -83) |
+  | West lobe | 4,394 | 0.070 km² | -924 … -388 | 60 … 260 | (-665, 157) |
+  | Stray pixel | 1 | — | 508 | 104 | — |
+
+  Main-area border pixels by neighbour: kelpForest 637, grassyPlateaus 270, crashZone 86, mushroomForest 12. The shape is irregular (not a box) — the SN2 transfer needs a box decomposition or a brush/mesh volume (see `04` biome look).
+
+### Safe Shallows -> SN2 box regions (transfer plan, 2026-11-24)
+- Tool: `python -I src/tools/sn1_biome_transfer.py <biome> [--cell 32] [--overlap 10] [--min-px 100] [--y-top 5] [--y-bottom -200] [--settings <waterbiomes dump>]`
+  (offline, numpy, no heavy lock). Reads `<SN1Dir>` Build18 `biomeMap.bin` + `biomes.csv`, keeps 4-connected components >= `--min-px`, rasterises them to
+  `--cell` m cells (a cell is in if >= half its pixels are the biome), covers the cells with a greedy exact rectangle cover, grows each rectangle by
+  `--overlap` m per horizontal side, and writes `<Workspace>/sn1_biomes/<biome>.json`: `boxes[{unity_x, unity_z, unity_y, center_ue, half_ue}]`
+  (UE cm, map offset 0), `mask_px`, `miss_px`, `extra_px`, and with `--settings` the SN1 settings, the converted `water_light` dict and `water_light_t3d`.
+  **VERIFIED (2026-11-24, offline run; file written)**
+- Safe Shallows (2 components kept, the stray pixel dropped), cell size vs. fit (missed = biome pixels outside every box, extra = non-biome pixels inside):
+
+  | Cell | Boxes | Missed | Extra |
+  |---|---|---|---|
+  | 8 m | 192 | 0.6 % | 2.4 % |
+  | 16 m | 95 | 2.5 % | 3.5 % |
+  | 32 m (default) | 42 | 5.7 % | 6.3 % |
+  | 64 m | 21 | 12.1 % | 9.1 % |
+
+  Current file: 42 boxes, unity_y -200 ... +5 m (UE z -20000 ... +500). Example box: unity_x [-170,-54], z [-522,-246] -> center_ue (-38400,-11200,-9750),
+  half_ue (13800,5800,10250). How SN2 blends overlapping/adjacent regions (seams at box edges) is UNTESTED; the 10 m overlap is a guess.
+- Conversion formula v1 (UNTESTED, needs screenshot calibration; the modkit has no UWEWater shaders, see `04`): sigma_c = SN1 `derived_extinction_per_m`;
+  `BiomeExtinction_c = exp(-sigma_c * K_M)` (K_M = 1); `BiomeExtinctionSkylight_c = LMAIN_SKY_c ** (sigma_c*K_M / -ln LMAIN_DIR_c)` (L_Main's ocean ratio kept);
+  `BiomeAlbedo` = scattering_rgb / sigma normalised to max 1; `WaterFogDistance = 100 * 3 / mean(sigma)` cm clamped to [1000, 20000];
+  `Advanced.BiomeEmissive` = SN1 derived emissive if non-zero; scales 12.5/17.5, fog thickness 10/4, blend XYSeperateZ (2000,100), DepthFadeMax 45000 kept from L_Main.
+- SN1 safeShallows `WaterscapeVolume.Settings` (from the live dump `<Workspace>/sn1_shots/safeShallows_dump.json`) **VERIFIED (2026-11-26, live dump)**:
+  absorption (125, 20, 4), scattering 1.2, scatteringColor (1,1,1,1), murkiness 0.18, emissive (0,0,0) x1, startDistance 25, sunlightScale 1,
+  ambientScale 1.5, temperature 28 -> derived extinction per m (0.2272, 0.0382, 0.0094), scattering per m 0.00216 (white). Red dies fast, blue barely.
+- Converted (formula v1, UNTESTED in SN2), in `<Workspace>/sn1_biomes/safeShallows.json` `water_light_t3d`: BiomeExtinction (0.797, 0.963, 0.991),
+  BiomeExtinctionSkylight (0.304, 0.831, 0.956), BiomeAlbedo (0.041, 0.245, 1.0), WaterFogDistance 3277 cm, the rest kept from L_Main.
+- Calibration shot pairs, now kept in the repo as samples `samples/safeShallows/<name>/{SN1,SN2}/` (moved 2026-11-26; procedure `samples/README.md`):
+  - `shallow_ravine` (2026-11-26): SN1 camera (108.65, -49.68, 41.92), yaw 262.2, pitch +2.0, fovH 91.5, dayScalar 0.47; SN2 at (4190, 10850, -4971) yaw -97.76.
+    SN1 view: from inside a rock arch at 50 m depth, looking out along a sandy ravine floor. Bright sunlit sand patches, a coral bush in the middle,
+    a purple coral head, a fish. The ravine walls fade into teal-blue water at roughly 30-40 m. The near rock is olive-brown and the cave shadow dark teal.
+  - `small_hill` (2026-11-26): SN1 camera (-28.76, -2.00, -115.03), yaw 147.5, pitch -31.7 (looking down), fovH 91.5, dayScalar 0.52; SN2 at (-11511, -2871, -213) yaw 147.49.
+    SN1 view: from just under the surface on top of a sand mound, looking down into a bright sandy basin, sea floor about 10-15 m below. Pale sand with
+    caustic light lines, rows of green coral bushes, a pitted brown rock spire on the left with purple shelf fungus, flat-topped rock pillars topped with
+    blue plants. A creature hovers in the basin. Water is clear aquamarine near the camera and saturated blue in the distance. Tall dark-blue silhouettes
+    in the upper right look like the kelp forest beyond the biome edge. Good for close colour, distance fade and the edge of the biome.
+  - `natures_table` (2026-11-26): SN1 camera (-141.14, -10.92, 83.89), yaw 155.4, pitch +5.5, fovH 91.5, dayScalar 0.59; SN2 at (8376, -14108, -1095) yaw 155.36.
+    SN1 view: 11 m deep, looking across a sand hill toward a large flat-topped rock table about 30-50 m away. The table has round arches in its side and
+    pale fan-shaped plants. A row of green coral bushes in the foreground, pink/purple tube coral bottom left. The upper ~45 % of the frame is the
+    underside of the water surface: bright, sparkling, with light shafts. Near water is clear cyan, far rock fades to flat blue-teal with almost no
+    contrast at roughly 60 m. Good for the surface underside, light shafts and the colour of mid-to-far fog.
+- Editor side: `src/modkit/scripts/sn1biome_regions.py` places the boxes (see `04` "Water colour / fog per area"). The 42 Safe Shallows regions with the
+  converted settings are saved in L_SN2World **VERIFIED (2026-11-26, editor self-check)**. Redo after new settings: `python src/tools/sn1_live.py waterbiomes
+  safeShallows_dump` while SN1 is in game -> the converter with `--settings <Workspace>/sn1_shots/safeShallows_dump.json` -> the placer -> cook.
+- First in-game comparison, autotest plan `sn1cmp_shallows` (run `<Workspace>/autotest/20261126_175137_sn1cmp_shallows`, SN1 shots in
+  `samples/safeShallows/<name>/SN1/shot.png`). **VERIFIED (2026-11-26, autotest screenshots): the 42 regions have no visible effect.** (Questioned by the
+  timing observation below.)
+  - `shallow_ravine` (4190,10850,-4971), yaw -97.8: terrain matches SN1 (rock arch framing a sand path, rock lip in the foreground). SN2 shows the
+    rock and sand lit orange/brown with no blue-teal tint and no fog falloff; SN1 shows teal water, purple coral, plants and fish (no flora/fauna ported yet).
+    HUD "Loading Shaders... 5,626".
+  - `small_hill` (-11511,-2871,-213), yaw 147.5, pitch -31.7: layout matches (rock on the left, mesas, sand ridge, trench). SN2 is rust-orange with a
+    grey-purple haze only at the far top right; SN1 is bright blue-turquoise water, cream sand, green plants, kelp silhouettes. HUD "Loading Shaders... 5,506".
+  - `natures_table`: no valid shot; the game crashed during the SN2AutoTest PODDUMP at the same moment as the teleport (`01` "Crashes"; PODDUMP removed 2026-11-26). Valid shot from the rerun `20261126_180611_sn1cmp_shallows_env`.
+  - Same run, settled log: `OCEAN settled BP_Ocean_C_0 BodySize=(0,0,0) WVC relLoc=0 relScale=0 ... WaterBoxVolume worldScale=0.00,0.00,0.00`.
+  - Diagnostic rerun with `envprobe` at each view (plan `sn1cmp_shallows_env.json` = the same waypoints + `cmdAfter: envprobe`; run
+    `<Workspace>/autotest/20261126_180611_sn1cmp_shallows_env`, DONE in 107 s, 3/3 shots, no crash, timeout 600 s):
+    - **The 42 regions exist at runtime with the converted settings. VERIFIED (2026-11-26, UE4SS.log `ENVPROBE env REGION ... WLS`)**: e.g.
+      `BP_UWEWaterBiomeRegionActor_C_100 WLS WaterFogDistance=3276.54 WaterFogThickness=10 WaterFogBaseThickness=4 WaterFogOpacityWeight=1
+      BiomeExtinction=(0.797,0.963,0.991) BiomeExtinctionSkylight=(0.304,0.831,0.956) BiomeAlbedo=(0.0412,0.245,1)`; box centres at z -9750 as placed.
+      `REGIONS 46` = 42 SN1Biome + the ocean region and its `WaterVolumeComponent_..._CAT_0`, each listed twice (the ocean class matches both FindAllOf queries).
+    - The SN2 ocean region (`BP_UWEOceanBiomeRegionActor_C_1`, fog 7500, albedo (0.1,0.295,1)) is blue as well, and the neutral `..._CAT_0` (fog 10000,
+      thickness 1, extinction 1, albedo 0) is still there. So **every region carries a blue look, yet the screen is orange/brown: the brown is not
+      caused by region values** (LOGGED 2026-11-26). The render path that turns region settings into the water look is what fails in L_SN2World.
+    - Which region applies at the camera: still unknown; `GetActorBounds` fails in Lua for every region (`boundsExtent=?`).
+    - `natures_table` (8376,-14108,-1095), yaw 154.5: **VERIFIED (2026-11-26, autotest screenshot)** almost the whole frame is haze, brown on the
+      left and grey-purple on the right; the table mesa is only a faint dark-red silhouette in the centre-right; the sea surface shows as white
+      patches at the top; HUD "Loading Shaders... 5,017", 12 m marker, O2 45. SN1: clear blue-turquoise water, the table mesa with its arches and
+      tube prefab sharp at ~30 m, sun rays, plants, coral, fish. Sight distance here is far shorter than in SN1; whether that comes from our
+      33 m WaterFogDistance is UNTESTED (no shot of the same view without the regions).
+  - **The look changes within seconds of arriving at a view. LOGGED (2026-11-26, screenshots of two runs at the same pose):** `shallow_ravine`
+    shot 1 s after the view (run `20261126_175137_sn1cmp_shallows`, driver.log 17:53:45 -> 17:53:46) shows the rock arch and path lit bright orange;
+    shot 4 s after (run `20261126_180611_sn1cmp_shallows_env`, envprobe in between, 18:07:25 -> 18:07:29) is one flat dark brown haze with no terrain.
+    `small_hill` is likewise darker and hazier at 4 s. So a short-range brown fog may build up after the teleport, i.e. the regions (fog distance
+    3277 cm) may act with the wrong colour rather than not at all. UNTESTED: shots at fixed delays after the teleport. The samples plan keeps the 4 s timing.
+  - Baseline sample analysis (`samples/safeShallows/*/analysis.md`, metrics from `src/tools/samples.py analyze`, run 180611): blue/red ratio SN1 1.50 /
+    1.64 / 2.30 vs SN2 0.90 / 0.89 / 1.04 (shallow_ravine / small_hill / natures_table); mean luminance SN1 46 / 136 / 144 vs SN2 30 / 42 / 50.
+  - Next: diagnose the render path in L_SN2World vs L_Main (`UUWEBiomeTrackerSubsystem.Volumes`, `UUWEBiomeMapComponent` on BP_Ocean:
+    RenderTarget/CaptureRadius/DefaultVolumeSettings, the BiomeMaterialParameterCollection values at the camera). Calibration of formula v1 waits for it.
 
 ## 7. Extraction pipeline (plan, UNTESTED)
 Rule: **RAM is scarce, time is not.** Every step streams one batch at a time, writes results to disk and keeps nothing large in memory. Long runs (hours) are fine.
@@ -225,6 +318,17 @@ Read the answers to the open questions in §4 and §5.
 - Option (b): extract the SN1 meshes and textures from the Addressables bundles with UnityPy (`pip install UnityPy`, ask first) and import them as new assets in the converter.
   This gives a faithful look but costs more work, and the legal limits are the same as for terrain.
 - Terrain materials need the same choice: SN1 textures (from the bundles) or SN2 terrain materials.
+
+### Origin cube extraction (2026-11-23, `<Workspace>/sn1_extract/origin/`, log `<Workspace>/reports/origin_extract.log`)
+- Command: `--center 0 -150 0 --size 500 --water 40 -18 -10` (output name `origin`). The default `--water` (spot-1 point) lies OUTSIDE this cube and made the extractor crash with `IndexError: index -994 out of bounds for axis 0 with size 504` at `ins[tuple(wv)]`; passing a water point inside the cube fixes it (no code change). VERIFIED (2026-11-23, run output).
+- Grid 504^3 voxels, 64 batches decoded (all `ok`), decode 6.7 s, decode+mesh 9.1 s, total 31.0 s. 956,344 vertices, 1,908,950 triangles meshed, **1,885,806 kept in the cube** (16 tiles). Per-tile triangles: 0_0 219698, 0_1 171031, 0_2 104863, 0_3 96194, 1_0 197639, 1_1 90762, 1_2 90821, 1_3 103722, 2_0 214328, 2_1 75265, 2_2 87022, 2_3 103595, 3_0 136202, 3_1 66013, 3_2 72133, 3_3 56518. VERIFIED (2026-11-23).
+- Self-check: water point (40,-18,-10) not inside solid, ray down hits y -27.125 (9.125 m below the point). Seabed normals near the centre: 7139 triangles, mean nz 0.582, 70.5% nz>0.5. Gap check: 2,829,469 edges, 7,402 open (6,867 on the cube XY border, 535 interior). VERIFIED (2026-11-23).
+- Height range: min vertex y -307.7 m (a deep pit), max -0.91 m; the seabed does NOT touch the cube floor (y -400). Near the pod the seabed is shallow (about -17 m under the pod, vertices at UE z -1625 to -1943 cm within 5 m of the XY origin). VERIFIED (2026-11-23, OBJ vertices).
+- Gotcha: the pod XY (0,0) lies exactly on the seam of tiles 1_x/2_x and 1_y/2_y; a vertical line trace exactly along x=0 or y=0 slips through the seam (no hit), offset the trace by a few cm.
+- **Triangle holes: ROOT CAUSE (2026-11-23).** The mesh is complete but NON-MANIFOLD. Surface nets (one vertex per cell) makes 4 quads share one edge where a cell face is ambiguous (checkerboard, two diagonal corners inside). Index-based check on the origin OBJs (positions merged across tiles, 1,178 position-degenerate triangles removed): **1,445 edges shared by 4 triangles (2 per direction), 0 other bad edges, 6,860 open edges all on the cube border, 0 interior open edges.** `sn1terrain_import.py` appends via GeometryScript `append_buffers_to_mesh` into a DynamicMesh, which refuses the 3rd and 4th triangle of an edge, so about 2 triangles per bad edge vanish from render and collision (up to about 2.9 k triangles in the origin set; the import's "dynamic mesh has N triangles" note was only a log line). Sanity samples: the ray of report 001 passes 0.44 m from a 4-triangle edge at 1.9 m range, report 002 passes 0.38 m from one at 2.0 m range (VERIFIED 2026-11-23, offline OBJ analysis, scripts not kept). The old gap check was blind to it: 4-use edges balance (+1+1-1-1 = 0, even count) so they never count as open. The "535 interior open edges" were position-key artifacts (OBJ rounded to 0.01 cm collapses 1,178 near-zero-area triangles into index-degenerate ones, giving same-direction and odd-count edges); they disappear once those are ignored, and are not holes. The 1,178 near-zero-area triangles stay in the output (harmless, removing them would open cracks).
+- **Fix (2026-11-23, code done, full re-extraction pending because the game was running):** `make_manifold()` in `src/tools/sn1_extract_terrain.py` runs right after `surface_nets`: every (triangle, corner) is a node, fans are joined across good edges, the two direction pairs of each bad edge are matched (preferring the pairing consistent at both endpoints) and joined at both endpoints, each remaining class of a vertex gets its own copy of the vertex at the same position. Geometry is identical (the sheets just stop sharing a vertex). Offline test on the existing origin OBJs: bad edges 1,445 -> 0 (passes 1,445, 4, 0), +1,541 vertices, open edges unchanged at 6,860 (all border), 4 s. New index-based `topo_check()` in the extractor summary (`selfcheck.tile_gap_check.topology_index_based`): `nonmanifold_edges` and `interior_open_edges` must both be 0; `interior_open_plus_nonmanifold` is the one number to assert. The old position-keyed `open_interior` is kept but cannot see split vertex copies. **Real extraction VERIFIED (2026-11-23, `<Workspace>/sn1_extract/origin_fix1/summary.json`, log `<Workspace>/reports/origin_fix1_extract.log`):** same command as `origin` plus `--out .../origin_fix1`, total about 35 s. `make_manifold {'bad_edges_per_pass': [1450, 4, 0], 'vertices_added': 1527, 'final_bad_edges': 0}`; `topology_index_based`: `nonmanifold_edges` 0, `interior_open_edges` 0, `interior_open_plus_nonmanifold` **0**, open edges 6,862 (all near the cube border). Triangles 1,908,950 meshed, identical to the old `origin` (only vertices changed: 957,871 vs 956,344). Per-tile triangle counts equal the old ones (e.g. 0_0 219698, 1_1 90762). The old output is kept as `<Workspace>/sn1_extract/origin_prefix`; `origin` now holds the fix1 data (importer reads `sn1_extract/<set>`). Importer now logs `WARNING <tile>: dynamic mesh kept N of M OBJ triangles` and a total "lost" line (must be 0).
+- **Texture streaks (cause found 2026-11-23, not fixed):** `sn1terrain_import.py` uses planar UVs `(X,Y)/UV_CM` from world XY only, so near-vertical faces project along Z and stretch into long vertical streaks. Fixing needs triplanar projection in the material or per-triangle dominant-axis UVs (vertices would need splitting at axis changes); UNTESTED, not cheap.
+- **Saw-toothed cube edge (user F1 `bugshots/20261123_181716_004`, +x face at SN1 x=249.6) and the chunk-seam hypothesis (2026-11-23, offline OBJ analysis).** (1) The extractor meshes ONE global grid (`build_grid` then a single `surface_nets` call); batch (160) and octree (32) boundaries only matter while decoding, so a mesher chunk loop seam cannot exist. (2) Binned midpoints of the 1,445 four-triangle edges, the 535 position-keyed "interior open" edges (reproduced exactly: tolerance 1 m, tot!=0 or odd count) and the 1,178 degenerate triangles by voxel index mod 32 and mod 160 on each axis: the fraction within 1.5 voxels of a plane is at or below the uniform expectation everywhere (e.g. mod 32: 0.05 to 0.09 vs 0.094; mod 160: 0.00 to 0.012 vs 0.019). No clustering on SN1 node/batch planes: hypothesis FAILED (2026-11-23). (3) The saw-tooth is the extractor's own cut: `keep = centroid inside cube` drops whole triangles, never clips them. At the +x face 410 triangles straddle x=250 and are removed whole (0 kept triangles have centroid >= 250); kept vertices reach up to 0.40 m past the plane, and the surface is an open sheet with no wall, so the boundary follows triangle edges (about 1 m cells) instead of the plane. VERIFIED (2026-11-23, OBJ data). Not fixed. Cheap fix if wanted: clip triangles to the 4 side planes (Sutherland-Hodgman, new vertices exactly on the plane) instead of the centroid rule; neighbouring cubes would then meet at the same plane, but the per-tile 125 m split would need the same clip. UNTESTED.
 
 ## 8. Open questions for SN2 (UNTESTED)
 - **Ocean depth.** `BP_Ocean_C.BodySize` Z = 1 km (`02`), but SN1 goes down to about −1.9 km. Check whether swim physics, pressure and fog work below 1 km, or whether `BodySize` can be raised.
