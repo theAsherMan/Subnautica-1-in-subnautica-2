@@ -1,8 +1,8 @@
 -- SN2Census — read-only measurement mod for the SN2EmptyWorld test (see research/09 "Empty world").
--- It never destroys, hides or changes anything, except the F1-F3 teleports.
+-- It never destroys, hides or changes anything. No hotkeys (removed 2026-11-23; recover with git show 40820f3).
 --
---   F5  sample + report now          F1/F2/F3  teleport (then sample + report 5 s later)
---   Arms itself on a ClientRestart whose world is L_Main; samples at 1,5,15,30,60,120 s, then every 120 s. Report file at t=15 s and on F5.
+--   No hotkeys (samples run on a timer; report file at t=15 s).
+--   Arms itself on a ClientRestart whose world is L_Main; samples at 1,5,15,30,60,120 s, then every 120 s.
 --   Sample = one log line "[SN2Census] t=... cvarSrc=... | mod: ..." ; report = census_<YYYYMMDD_HHMMSS>.txt next to this mod.
 -- Nothing runs in the lobby: sampling is scheduled only after arming (ExecuteWithDelay chain), never from a LoopAsync.
 
@@ -246,18 +246,12 @@ RegisterHook("/Script/Engine.PlayerController:ClientRestart", function(ctx)
     end
 end)
 
--- ---------------------------------------------------------------- keys
-RegisterKeyBind(Key.F5, function() sampleNow(true) end)
-
-local function teleport(label, x, y, z)
-    local pawn = getPawn()
-    if not pawn then log(label .. ": no pawn"); return end
-    local ok, err = pcall(function() pawn:K2_SetActorLocation({ X = x, Y = y, Z = z }, false, {}, true) end)
-    log(string.format("%s: teleport to (%d, %d, %d) %s", label, x, y, z, ok and "ok" or tostring(err)))
-    ExecuteWithDelay(5000, function() sampleNow(true) end)
-end
-RegisterKeyBind(Key.F1, function() teleport("F1", -204942, 432071, -2000) end)
-RegisterKeyBind(Key.F2, function() teleport("F2", -146623, 228913, -1000) end)
-RegisterKeyBind(Key.F3, function() teleport("F3", -336997, 433246, 322) end)
-
 log("loaded (read-only census; arms in any world except L_ClientLobby)")
+
+-- opt-in diagnostic census (diag.flag next to Scripts/ turns it on; see diag.lua)
+local okd, errd = pcall(require, "diag")
+if not okd then log("diag.lua not loaded: " .. tostring(errd)) end
+
+-- opt-in test: set r.VT.IOPriority_HighPagePri early + read-back log (vtprio.flag next to Scripts/ turns it on; see vtprio.lua)
+local okv, errv = pcall(require, "vtprio")
+if not okv then log("vtprio.lua not loaded: " .. tostring(errv)) end

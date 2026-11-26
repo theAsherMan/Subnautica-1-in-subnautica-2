@@ -1,0 +1,9 @@
+{
+ "name": "lobbycount_late",
+ "worldLevel": null,
+ "start": "new",
+ "lobbyCensus": [5, 15, 30, 45, 65, 90],
+ "worldCensus": 10,
+ "waypoints": [],
+ "settleSeconds": 15
+}
