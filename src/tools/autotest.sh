@@ -82,13 +82,15 @@ T0=$(date +%s)   # the timeout covers the whole run: from here (before install/l
 record_slots_pre "$OUT" "$T0"   # slot names + mtimes + run start, for the end-of-run test-world cleanup
 
 if [ "$SN2_INPUT" = engine ]; then METHOD=engine-printwindow; else METHOD=driver-grab; fi
-EXPECTED=$(python -c "import json,sys;print(sum(10 if w.get('views')=='abs8ud' else (2 if w.get('views') in ('one','down45') else 8) for w in json.load(open(sys.argv[1]))['waypoints']))" "$(cygpath -w "$PLANFILE")")
+EXPECTED=$(python -c "import json,sys;print(sum(len([t for t in w.get('steps',[]) if 'shot' in t]) if w.get('views')=='script' else 10 if w.get('views')=='abs8ud' else (1 if w.get('views')=='fixed' else (2 if w.get('views') in ('one','down45','vanish') else 8)) for w in json.load(open(sys.argv[1]))['waypoints']))" "$(cygpath -w "$PLANFILE")")
 START=$(python -c "import json,sys;print(json.load(open(sys.argv[1])).get('start','new'))" "$(cygpath -w "$PLANFILE")")
 echo "plan=$PLAN input=$SN2_INPUT method=$METHOD expected=$EXPECTED out=$OUT"
 
 bash "$TOOLS/backup_saves.sh" || echo "WARNING: backup failed"
 bash "$TOOLS/install_mod.sh" SN2AutoTest
 bash "$TOOLS/install_mod.sh" SN2Census
+# extra mods a plan needs: optional top-level "mods": ["SN2BugShot", ...] in the plan json
+for M in $(python -c "import json,sys;print(' '.join(json.load(open(sys.argv[1])).get('mods',[])))" "$(cygpath -w "$PLANFILE")" | tr -d '\r'); do bash "$TOOLS/install_mod.sh" "$M" || exit $?; done
 rm -rf "$RUN"; mkdir -p "$RUN"
 python "$TOOLS/autotest_driver.py" arm "$(cygpath -w "$PLANFILE")" "$(cygpath -w "$RUN")" || { echo "arm failed"; exit 2; }
 rm -f "$UE4LOG" 2>/dev/null
@@ -158,7 +160,7 @@ while [ -z "$RESULT" ]; do
     force_kill "game still running 60 s after the driver ended (driver result ${DR:-none})"
     RESULT="${DR:-DRIVER_ERROR}"
   elif [ $SEEN = 1 ] && [ $RUNNING = 0 ]; then
-    for i in 1 2 3 4 5 6 7 8; do kill -0 "$DRV" 2>/dev/null || break; sleep 2; done   # the quit clicks end the game before the driver returns
+    for i in $(seq 1 25); do kill -0 "$DRV" 2>/dev/null || break; sleep 2; done   # up to 50 s: the game exit can take 18 s+ and the driver writes RESULT DONE only after it
     if grep -q 'RESULT DONE' "$OUT/driver.log" 2>/dev/null; then RESULT=DONE; continue; fi
     NEWC=$(ls "$CRASHDIR" 2>/dev/null | sort | comm -13 "$OUT/.crashes_before" - | wc -l)
     NEWD=$(ls "$SN2_UE4SS_DIR"/crash_*.dmp 2>/dev/null | sort | comm -13 "$OUT/.dmp_before" - | wc -l)

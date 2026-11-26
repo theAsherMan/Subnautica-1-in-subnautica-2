@@ -982,6 +982,10 @@ def run_plan(plan_path):
         say("menu ready %.1f s after the lobby WORLD line (frame diff %.2f); first click now" % (t_ready - t_lobby, d))
         fps_probe("menu_ready")
         print("[driver] MENU_READY_AT %.3f" % t_ready, flush=True)
+        if plan.get("lobbyCensus"):   # test-only object census in the lobby (GC-watchdog diagnosis): hold the first click until the Lua mod has logged them all
+            _lc = max(plan["lobbyCensus"]); say("lobby census: holding the menu clicks until 'CENSUS DONE lobby' (samples at %s s after the lobby WORLD line)" % plan["lobbyCensus"])
+            if not wait_log(r"\[SN2AutoTest\] CENSUS DONE lobby", off, _lc + 90):
+                say("WARNING 'CENSUS DONE lobby' not seen in time; clicking on")
         mark = log_size()
         do_steps(menus["load_game" if plan.get("start") == "load" else "new_game"])
         # world
@@ -1002,6 +1006,9 @@ def run_plan(plan_path):
             prev = st0
             if stable_n >= 3 and time.time() - t_pw >= plan.get("settleMin", 2):
                 break
+        if plan.get("worldCensus") is not None:
+            if not wait_log(r"\[SN2AutoTest\] CENSUS DONE world", mark, plan["worldCensus"] + 120):
+                say("WARNING 'CENSUS DONE world' not seen in time")
         say("readiness reached after %.1f s (pawn stable x%d)" % (time.time() - t_pw, stable_n))
         fg_probe("ingame")
         q2_window("A"); q2_window("B")
@@ -1085,12 +1092,14 @@ def run_plan(plan_path):
                 elif adv >= nfr:
                     return adv
                 time.sleep(0.1)
-        prev_shot = [None]; views_done = {}
+        prev_shot = [None]; views_done = {}; vstate = {}
         def do_waypoint(wi, wp):
             nonlocal n
             if wi < 5:
                 if ENG: send_cmd("teleport", str(wi + 1))
                 else: combo("ctrl+shift+" + "zxcvb"[wi])
+            if ENG and wp.get("cmd"):   # test-only: run one engine-mode verb at this waypoint (e.g. 'tadpole'), then wait cmdWait s
+                ok_c, d_c, _ = send_cmd(wp["cmd"]); say("CMD %s -> ok=%s %s" % (wp["cmd"], ok_c, d_c)); time.sleep(float(wp.get("cmdWait", 3)))
             views = wp.get("views")
             wait_frames(10, 0.0 if views else 0.6)   # abs views: no "pawn still" wait (a swimming pawn never is, and every second costs oxygen)
             chk(wi, wp)
@@ -1119,10 +1128,155 @@ def run_plan(plan_path):
                 if ENG and wp.get("probe"): send_cmd("sn1probe", "%s_%s_end" % (wp["name"], wp["probe"]), 30)
                 _one_shot(1, "after wait")
                 return
+            if views == "vanish":
+                # long diagnostic waypoint (2026-11-23, vanish_proof): stay in view of the terrain, re-teleport + re-look before every shot, census every probeEvery s,
+                # o2 refill every o2Every s, watch the game log for the story-goal burst, force it at forceGoalAt s if it has not come, run to `wait` s
+                # (or `afterBurst` s after the burst, if set). State survives a death/retry (timeline is not restarted).
+                vs = vstate.setdefault(wi, {"t0": time.time(), "k": 0, "shot": -1e9, "probe": -1e9, "o2": -1e9, "burst": None, "forced": False, "off": 0, "tailbuf": "", "seen": set(), "n": 0})
+                BURST_RX = re.compile(r"Unlocked story goal (DA_Investigation_BioBed_Unlock_CoralGardens_StoryGoal|DA_Player_NoA_FirstRadioMessage_StoryGoal|DA_Player_NoA_FirstRadioMessage_without_BaseNoA_StoryGoal)|Alert_Research1_PDA_1")
+                def el(): return time.time() - vs["t0"]
+                def v_census(tag):
+                    ok_c, d_c, _ = send_cmd("terraincensus", "%s_%s" % (wp["name"], tag), 30)
+                    say("TCENSUS t=%.0f %s -> ok=%s %s" % (el(), tag, ok_c, d_c))
+                def v_shot(tag):
+                    if wi < 5 and ENG: send_cmd("teleport", str(wi + 1))
+                    if ENG and wp.get("o2"): send_cmd("o2fill")
+                    chk(wi, wp)
+                    if wp.get("yaw") is not None: turn_to(wrap(float(wp["yaw"])), float(wp.get("pitch", 0.0)), cal, tol=1.5)
+                    chk(wi, wp)
+                    wait_frames(6, 0.0)
+                    chk(wi, wp)
+                    k = vs["k"]; vs["k"] += 1
+                    if ENG: send_cmd("camlog", "%s_k%d" % (wp["name"], k))
+                    st1 = get_state() or {"pawn": (0, 0, 0), "cam": (0, 0, 0), "yaw": float("nan"), "pitch": float("nan")}
+                    fn1 = "%02d_%s_k%d.png" % (wi, wp["name"], k)
+                    _im1 = shot(os.path.join(shots_dir, fn1))
+                    say("SHOTSIZE %s %dx%d (t=%.0f %s)" % (fn1, _im1.size[0], _im1.size[1], el(), tag))
+                    with open(manifest, "a") as f:
+                        f.write("%d\t%s\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%s\n" % (wi, wp["name"], k, st1["yaw"], *st1["pawn"], *st1["cam"], int(time.time()), fn1))
+                    print("[driver] SHOT %s t=%.0f %s yaw=%.1f pitch=%.1f pawn=%s" % (fn1, el(), tag, st1["yaw"], st1["pitch"], st1["pawn"]), flush=True)
+                def v_scanlog():
+                    try:
+                        with open(gl_path, "rb") as f:
+                            f.seek(vs["off"]); chunk = f.read()
+                        vs["off"] += len(chunk)
+                    except OSError:
+                        return None
+                    txt = chunk.decode("utf-8", "replace")
+                    for line in txt.splitlines():
+                        m = BURST_RX.search(line)
+                        if m and (m.group(1) or "Alert_Research1") not in vs["seen"]:
+                            vs["seen"].add(m.group(1) or "Alert_Research1")
+                            say("LOGLINE %s" % line.strip()[:200])
+                            if vs["burst"] is None: vs["burst"] = (el(), line.strip()[:60])
+                    return vs["burst"]
+                def v_burst_note():
+                    b = vs["burst"]
+                    say("BURST %s t=%.1f (log line %s)" % ("forced" if vs["forced"] else "natural", b[0], b[1]))
+                    v_census("burst"); v_shot("burst"); vs["probe"] = vs["shot"] = time.time()
+                if not vs["n"]:
+                    # the log may already hold the burst from before the waypoint started: that would make it unusable as 'before'
+                    vs["off"] = 0; pre = v_scanlog()
+                    if pre: say("WARNING burst already in the game log before the waypoint started: %s" % (pre,)); vs["burst"] = None; vs["seen"].clear()
+                    vs["off"] = os.path.getsize(gl_path) if os.path.exists(gl_path) else 0
+                    if ENG: send_cmd("storygoalstate", "DA_Player_NoA_FirstRadioMessage_StoryGoal")
+                    v_census("start"); v_shot("start"); vs["n"] = 1
+                    vs["shot"] = vs["probe"] = vs["o2"] = time.time()
+                    say("vanish: t0 set, wait=%s forceGoalAt=%s" % (wp.get("wait"), wp.get("forceGoalAt")))
+                _w = float(wp.get("wait", 0)); _se = float(wp.get("shotEvery", 30)); _pe = float(wp.get("probeEvery", 30)); _oe = float(wp.get("o2Every", 30))
+                _fg = float(wp.get("forceGoalAt", 1e9)); _ab = float(wp.get("afterBurst", 0)); _force_t = None
+                while el() < _w:
+                    time.sleep(1.0)
+                    chk(wi, wp)
+                    was = vs["burst"]
+                    v_scanlog()
+                    if vs["burst"] and not was: v_burst_note()
+                    if not vs["burst"] and not vs["forced"] and el() >= _fg:
+                        ok_g, d_g, _ = send_cmd("storygoal", "DA_Player_NoA_FirstRadioMessage_StoryGoal", 30)
+                        say("FORCEGOAL t=%.0f storygoal -> ok=%s %s" % (el(), ok_g, d_g)); vs["forced"] = True; _force_t = el()
+                    if vs["forced"] and not vs["burst"] and _force_t is not None and el() - _force_t > 20:
+                        say("BURST forced-sent but no burst line in the game log within 20 s (storygoal ok result above)"); _force_t = None
+                    if vs["burst"] and _ab and el() - vs["burst"][0] >= _ab:
+                        say("afterBurst %.0f s reached, ending the wait" % _ab); break
+                    if _oe and ENG and time.time() - vs["o2"] >= _oe:
+                        send_cmd("o2fill"); vs["o2"] = time.time()
+                    if _pe and time.time() - vs["probe"] >= _pe:
+                        v_census("t%d" % int(el())); vs["probe"] = time.time()
+                    if _se and time.time() - vs["shot"] >= _se:
+                        v_shot("t%d" % int(el())); vs["shot"] = time.time()
+                say("diagnostic wait done: %.0f s, burst=%s forced=%s" % (el(), vs["burst"], vs["forced"]))
+                if not vs["burst"]: say("BURST none seen in the game log")
+                v_census("end"); v_shot("end")
+                return
             def o2():   # test-only oxygen refill (waypoint field "o2": true)
                 if ENG and wp.get("o2"):
                     ok_o, d_o, _ = send_cmd("o2fill")
                     if not ok_o: say("O2FILL failed: %s" % d_o)
+            if views == "script":
+                # scripted engine-verb steps (bug report popup test). Step kinds: {"cmd","args","wait"}, {"state":{k:v}} (bugreport_state detail
+                # must match; text is a substring match), {"time":"frozen"|"advancing","over":s}, {"shot":name}. Results: ASSERT PASS/FAIL lines.
+                def bstate():
+                    ok_s, d_s, _ = send_cmd("bugreport_state", "", 15)
+                    kv = {}
+                    if ok_s:
+                        head, _, txt = d_s.partition(" text=")
+                        for tok in head.split():
+                            k_, _, v_ = tok.partition("=")
+                            kv[k_] = v_
+                        kv["text"] = txt
+                    return ok_s, kv, d_s
+                for si, stp in enumerate(wp.get("steps", [])):
+                    if "cmd" in stp:
+                        ok_c, d_c, _ = send_cmd(stp["cmd"], stp.get("args", ""), 60)
+                        say("STEP %d CMD %s %s -> ok=%s %s" % (si, stp["cmd"], stp.get("args", ""), ok_c, d_c))
+                        if not ok_c: say("ASSERT FAIL step %d cmd %s failed: %s" % (si, stp["cmd"], d_c))
+                        time.sleep(float(stp.get("wait", 1)))
+                    elif "state" in stp:
+                        ok_s, kv, raw = bstate()
+                        for k_, v_ in stp["state"].items():
+                            good = ok_s and ((v_ in kv.get(k_, "")) if k_ == "text" else (kv.get(k_) == v_))
+                            say("ASSERT %s step %d state %s=%s (got %s) | %s" % ("PASS" if good else "FAIL", si, k_, v_, kv.get(k_), raw[:200]))
+                    elif "time" in stp:
+                        ok1, kv1, _r1 = bstate(); time.sleep(float(stp.get("over", 2))); ok2, kv2, _r2 = bstate()
+                        try: dt = float(kv2.get("time")) - float(kv1.get("time"))
+                        except (TypeError, ValueError): dt = None
+                        good = dt is not None and ((abs(dt) < 0.05) if stp["time"] == "frozen" else (dt > 0.5 * float(stp.get("over", 2))))
+                        say("ASSERT %s step %d time %s (game time %s -> %s, dt=%s)" % ("PASS" if good else "FAIL", si, stp["time"], kv1.get("time"), kv2.get("time"), dt))
+                    elif "shot" in stp:
+                        fn = "%02d_%s_%s.png" % (wi, wp["name"], stp["shot"])
+                        try:
+                            _im = shot(os.path.join(shots_dir, fn)); say("STEP %d SHOT %s %dx%d" % (si, fn, _im.size[0], _im.size[1]))
+                        except Exception as e_s:  # noqa: BLE001
+                            say("ASSERT FAIL step %d shot %s: %r" % (si, fn, e_s))
+                        st = get_state() or {"pawn": (0, 0, 0), "cam": (0, 0, 0), "yaw": float("nan")}
+                        with open(manifest, "a") as f:
+                            f.write("%d\t%s\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%s\n" % (wi, wp["name"], si, st["yaw"], *st["pawn"], *st["cam"], int(time.time()), fn))
+                        n += 1
+                return
+            if views == "fixed":
+                # one view at waypoint yaw/pitch (UE degrees, as in an F1 report), then optional engine verb "cmdAfter" (e.g. bugshot), one shot k0
+                o2()
+                if ENG and wp.get("fov"):
+                    ok_f, d_f, _ = send_cmd("fov", str(wp["fov"]))
+                    say("FOV request %s -> ok=%s %s" % (wp["fov"], ok_f, d_f))
+                chk(wi, wp)
+                st = turn_to(wrap(float(wp["yaw"])), float(wp["pitch"]), cal, tol=1.0)
+                o2(); chk(wi, wp)
+                wait_frames(6, 0.0, "wp_%s" % wp["name"])
+                chk(wi, wp)
+                if ENG and wp.get("cmdAfter"):
+                    ok_c, d_c, _ = send_cmd(wp["cmdAfter"], "", 60); say("CMDAFTER %s -> ok=%s %s" % (wp["cmdAfter"], ok_c, d_c)); time.sleep(float(wp.get("cmdWait", 3)))
+                if ENG: send_cmd("camlog", "%s_k0" % wp["name"])
+                st = get_state() or st or {"pawn": (0, 0, 0), "cam": (0, 0, 0), "yaw": float("nan"), "pitch": float("nan")}
+                say("VIEWERR fixed target yaw=%.1f pitch=%.1f measured yaw=%.2f pitch=%.2f cam=(%.0f,%.0f,%.0f)" % (float(wp["yaw"]), float(wp["pitch"]), st["yaw"], st["pitch"], *st["cam"]))
+                fn = "%02d_%s_k0.png" % (wi, wp["name"])
+                _im = shot(os.path.join(shots_dir, fn))
+                say("SHOTSIZE %s %dx%d" % (fn, _im.size[0], _im.size[1]))
+                with open(manifest, "a") as f:
+                    f.write("%d\t%s\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%s\n" % (wi, wp["name"], 0, st["yaw"], *st["pawn"], *st["cam"], int(time.time()), fn))
+                n += 1
+                print("[driver] SHOT %s yaw=%.1f pitch=%.1f pawn=%s" % (fn, st["yaw"], st["pitch"], st["pawn"]), flush=True)
+                return
             if views in ("abs8ud", "down45"):
                 o2()
                 if ENG and wp.get("fov"):
@@ -1256,7 +1410,7 @@ def arm(plan_path, run_dir):
     """write run/active_plan.lua (name, worldLevel, waypoints) for the observe-only Lua mod"""
     plan = json.load(open(plan_path))
     os.makedirs(run_dir, exist_ok=True)
-    keep = {k: plan.get(k) for k in ("name", "worldLevel", "waypoints")}
+    keep = {k: plan.get(k) for k in ("name", "worldLevel", "waypoints", "lobbyCensus", "worldCensus")}
     keep["inputMode"] = "engine" if ENG else "os"
     if ENG and plan.get("lookFallback"): keep["lookFallback"] = True
     open(os.path.join(run_dir, "active_plan.lua"), "w").write("return " + lua_val(keep) + chr(10))

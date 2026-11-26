@@ -113,6 +113,101 @@ local function waitPawn(myGen)
     after(1, function() waitPawn(myGen) end)
 end
 
+-- TEST-ONLY object census (plan.lobbyCensus = {sec,...} seconds after the lobby WORLD line; plan.worldCensus = sec after PAWN possessed). One sample at a
+-- time, never per frame. Purpose: find what the ~11.4k lobby SphereComponents are (GC-watchdog diagnosis, research/01 "GC-watchdog analysis").
+-- Lines: CENSUS <tag> n=.. SphereComponent=.. BodySetup=.. StaticMeshComponent=.. PrimitiveComponent=.. took=..s ; CENSUS <tag> OWNERS/OUTERS/OUTERCLS k=v | ... ;
+-- CENSUS <tag> SAMPLE i=.. comp=.. outer=.. owner=.. ownerClass=.. valid=..  ; CENSUS DONE lobby / CENSUS DONE world (the driver waits for these).
+local function histTop(h, n)
+    local arr = {}
+    for k, v in pairs(h) do arr[#arr + 1] = { k = k, v = v } end
+    table.sort(arr, function(a, b) if a.v ~= b.v then return a.v > b.v end return a.k < b.k end)
+    local out = {}
+    for i = 1, math.min(n, #arr) do out[#out + 1] = string.format("%s=%d", arr[i].k, arr[i].v) end
+    return table.concat(out, " | ") .. string.format(" (distinct=%d)", #arr)
+end
+local chr9, chr10, chr13 = string.char(9), string.char(10), string.char(13)
+local function fullOf(o)
+    local ok, v = pcall(function() return o:GetFullName() end)
+    return ok and (tostring(v):gsub("[" .. chr9 .. chr10 .. chr13 .. "]", " ")) or "?"
+end
+local function classOf(o)
+    local ok, v = pcall(function() return o:GetClass():GetFName():ToString() end)
+    return ok and tostring(v) or "?"
+end
+local function takeCensus(tag)
+    local t0 = os.clock()
+    local world = "?"
+    pcall(function() world = getPC():GetWorld():GetFName():ToString() end)
+    local counts, took = {}, {}
+    local sph = nil
+    for _, cls in ipairs({ "SphereComponent", "BodySetup", "StaticMeshComponent", "PrimitiveComponent" }) do
+        local c0 = os.clock()
+        local okF, t = pcall(FindAllOf, cls)
+        if okF and type(t) == "table" then
+            counts[cls] = #t
+            if cls == "SphereComponent" then sph = t end
+        else counts[cls] = -1 end
+        took[cls] = os.clock() - c0
+    end
+    log(string.format("CENSUS %s world=%s SphereComponent=%d BodySetup=%d StaticMeshComponent=%d PrimitiveComponent=%d took=%.2fs (sphere %.2fs)",
+        tag, world, counts.SphereComponent, counts.BodySetup, counts.StaticMeshComponent, counts.PrimitiveComponent, os.clock() - t0, took.SphereComponent))
+    if not sph then return end
+    local owners, outerCls, outers, noOwner, invalid = {}, {}, {}, 0, 0
+    local nSamples, step = 0, 250
+    for i, o in ipairs(sph) do
+        local ok, err = pcall(function()
+            if not isValid(o) then invalid = invalid + 1 end
+            local own = o:GetOwner()
+            local oc
+            if isValid(own) then oc = classOf(own) else oc = "<none>"; noOwner = noOwner + 1 end
+            owners[oc] = (owners[oc] or 0) + 1
+            local out = o:GetOuter()
+            local ocls = isValid(out) and classOf(out) or "<none>"
+            outerCls[ocls] = (outerCls[ocls] or 0) + 1
+            local lvl = "<none>"
+            if isValid(own) then
+                local lo = own:GetOuter()
+                if isValid(lo) then lvl = classOf(lo) .. ":" .. nameOf(lo) end
+            elseif isValid(out) then lvl = "(outer) " .. ocls .. ":" .. nameOf(out) end
+            outers[lvl] = (outers[lvl] or 0) + 1
+            if (i - 1) % step == 0 and nSamples < 50 then
+                nSamples = nSamples + 1
+                local ownFull = isValid(own) and fullOf(own) or "<none>"
+                log(string.format("CENSUS %s SAMPLE i=%d comp=%s outer=%s owner=%s ownerClass=%s valid=%s", tag, i, fullOf(o),
+                    isValid(out) and fullOf(out) or "<none>", ownFull, oc, tostring(isValid(o))))
+            end
+        end)
+        if not ok then owners["<error>"] = (owners["<error>"] or 0) + 1 end
+    end
+    log(string.format("CENSUS %s OWNERS noOwner=%d invalid=%d %s", tag, noOwner, invalid, histTop(owners, 20)))
+    log(string.format("CENSUS %s OUTERCLS %s", tag, histTop(outerCls, 20)))
+    log(string.format("CENSUS %s OUTERS %s", tag, histTop(outers, 20)))
+    log(string.format("CENSUS %s END total_took=%.2fs", tag, os.clock() - t0))
+end
+local censusGen = 0   -- bumped on every non-lobby ClientRestart so pending lobby samples are dropped
+local function scheduleLobbyCensus()
+    local list = plan.lobbyCensus
+    if type(list) ~= "table" or #list == 0 then return end
+    local myGen = censusGen
+    log("CENSUS lobby scheduled at s=" .. table.concat(list, ","))
+    for i, sec in ipairs(list) do
+        after(sec, function()
+            if myGen ~= censusGen then log("CENSUS lobby sample s=" .. sec .. " skipped (left the lobby)"); return end
+            takeCensus(string.format("lobby_s%d", sec))
+            if i == #list then log("CENSUS DONE lobby") end
+        end)
+    end
+end
+local worldCensusDone = false
+local function scheduleWorldCensus()
+    if type(plan.worldCensus) ~= "number" or worldCensusDone then return end
+    worldCensusDone = true
+    after(plan.worldCensus, function()
+        takeCensus(string.format("world_s%d", plan.worldCensus))
+        log("CENSUS DONE world")
+    end)
+end
+
 RegisterHook("/Script/Engine.PlayerController:ClientRestart", function(ctx)
     local ok, world = pcall(function() return ctx:get():GetWorld():GetFullName() end)
     if not ok or type(world) ~= "string" then return end
@@ -121,6 +216,7 @@ RegisterHook("/Script/Engine.PlayerController:ClientRestart", function(ctx)
     if short == "L_ClientLobby" then
         if not lobbySeen then
             lobbySeen = true
+            scheduleLobbyCensus()
             if plan.worldLevel then
                 after(2, function()
                     local before = worldLevelName()
@@ -131,7 +227,9 @@ RegisterHook("/Script/Engine.PlayerController:ClientRestart", function(ctx)
         end
     else
         gen = gen + 1
+        censusGen = censusGen + 1
         spawnLoc = nil
+        scheduleWorldCensus()
         waitPawn(gen)
     end
 end)
@@ -854,8 +952,255 @@ function verbs.envprobe(args)
     end
     return true, string.format("regions=%d fog=%d pp=%d attrs=%d", nreg, nf, npp, #attrs)
 end
+-- watersys <label>: read-only (2026-11-26, brownwater diagnostic). Biome tracker subsystem, biome map components, MPC values, sky, volume trackers.
+-- Queries specific classes only (never sweeps all objects).
+function verbs.watersys(args)
+    local label = tostring(args ~= "" and args or "ws")
+    local function P(s) log("WATERSYS " .. label .. " " .. s) end
+    local function rd1(x)
+        if type(x) ~= "userdata" then return tostring(x) end
+        local r
+        pcall(function() r = string.format("(%.4g,%.4g,%.4g,%.4g)", x.R, x.G, x.B, x.A) end)
+        if not r then pcall(function() r = string.format("(%.4g,%.4g,%.4g,%.4g)", x.X, x.Y, x.Z, x.W) end) end
+        if not r then pcall(function() r = string.format("(%.4g,%.4g,%.4g)", x.X, x.Y, x.Z) end) end
+        return r or str(x)
+    end
+    local pc = getPC()
+    local world = nil
+    pcall(function() world = pc:GetWorld() end)
+    pcall(function() P("WORLD " .. str(world:GetFullName())) end)
+    local nsub = 0
+    local mpcSeen = {}
+    for _, s in ipairs(findAll("UWEBiomeTrackerSubsystem")) do
+        nsub = nsub + 1
+        P("SUBSYS " .. nameOf(s))
+        pcall(function() P("SUBSYS SkyActor=" .. str(s.SkyActor:GetFullName())) end)
+        local vols = nil
+        pcall(function() vols = s.Volumes end)
+        local n = 0
+        pcall(function() n = vols:GetArrayNum() end)
+        P("SUBSYS Volumes num=" .. tostring(n))
+        for i = 1, math.min(n, 60) do
+            pcall(function()
+                local v = vols[i]
+                local own = "?"
+                pcall(function() own = v:GetOwner():GetFName():ToString() end)
+                local wls = v.WaterLightSettings
+                local loc = "?"
+                pcall(function() loc = fmtV(v:K2_GetComponentLocation()) end)
+                P(string.format("VOL[%d] %s owner=%s loc=(%s) fogDist=%.5g albedo=%s", i, nameOf(v), own, loc, wls.WaterFogDistance, rd1(wls.BiomeAlbedo)))
+            end)
+        end
+        local mpc = nil
+        pcall(function() mpc = s.BiomeMaterialParameterCollection end)
+        P("SUBSYS BiomeMPC=" .. (isValid(mpc) and str(mpc:GetFullName()) or "NULL"))
+        pcall(function() P("SUBSYS BiomeNiagaraPC=" .. str(s.BiomeNiagaraParameterCollection:GetFullName())) end)
+        if isValid(mpc) then mpcSeen[#mpcSeen + 1] = mpc end
+    end
+    P("SUBSYS count=" .. nsub)
+    -- MPC parameter names + live values
+    local kml = nil
+    pcall(function() kml = StaticFindObject("/Script/Engine.Default__KismetMaterialLibrary") end)
+    for _, mpc in ipairs(mpcSeen) do
+        pcall(function()
+            local sp = mpc.ScalarParameters
+            local n = sp:GetArrayNum()
+            P("MPC scalar params=" .. n)
+            for i = 1, n do
+                local nm = sp[i].ParameterName
+                local def = sp[i].DefaultValue
+                local live = "?"
+                pcall(function() live = tostring(kml:GetScalarParameterValue(world, mpc, nm)) end)
+                P(string.format("MPC S %s default=%s live=%s", str(nm), tostring(def), live))
+            end
+        end)
+        pcall(function()
+            local vp = mpc.VectorParameters
+            local n = vp:GetArrayNum()
+            P("MPC vector params=" .. n)
+            for i = 1, n do
+                local nm = vp[i].ParameterName
+                local live = "?"
+                pcall(function() live = rd1(kml:GetVectorParameterValue(world, mpc, nm)) end)
+                P(string.format("MPC V %s default=%s live=%s", str(nm), rd1(vp[i].DefaultValue), live))
+            end
+        end)
+    end
+    -- biome map components
+    local nbm = 0
+    for _, c in ipairs(findAll("UWEBiomeMapComponent")) do
+        nbm = nbm + 1
+        local own = "?"
+        pcall(function() own = c:GetOwner():GetFName():ToString() end)
+        P(string.format("BIOMEMAP %s owner=%s CaptureRadius=%s W2B=%s", nameOf(c), own, tostring(try(function() return c.CaptureRadius end)), try(function() return rd1(c.WorldToBiomeMapScaleAndOffset) end)))
+        pcall(function() P("BIOMEMAP loc=" .. fmtV(c:K2_GetComponentLocation()) .. " scale=" .. fmtV(c:K2_GetComponentScale())) end)
+        pcall(function()
+            local rt = c.RenderTarget
+            if isValid(rt) then P(string.format("BIOMEMAP RT=%s size=%sx%s", str(rt:GetFullName()), tostring(rt.SizeX), tostring(rt.SizeY)))
+            else P("BIOMEMAP RT=NULL") end
+        end)
+        pcall(function() local d = c.DefaultVolumeSettings; P(string.format("BIOMEMAP DefaultVolumeSettings albedo=%s density=%s", rd1(d.Albedo), tostring(d.Density))) end)
+    end
+    P("BIOMEMAP count=" .. nbm)
+    -- sky actor basics
+    for _, a in ipairs(findAll("BP_UWESky_C")) do
+        P(string.format("SKY %s %s", nameOf(a), (function() local r = {}
+            for _, k in ipairs({ "TimeOfDay", "NormalizedDaylight", "TransitionAlpha" }) do r[#r + 1] = k .. "=" .. tostring(try(function() return a[k] end)) end
+            return table.concat(r, " ") end)()))
+        pcall(function() P("SKY Sun intensity=" .. tostring(a.SunLightComponent.Intensity) .. " color=" .. rd1(a.SunLightComponent.LightColor) .. " rot=" .. fmtV(a.SunLightComponent:K2_GetComponentRotation())) end)
+    end
+    -- all PostProcessComponents (owners + enabled + priority)
+    local npc = 0
+    for _, c in ipairs(findAll("PostProcessComponent")) do
+        npc = npc + 1
+        local own = "?"
+        pcall(function() own = c:GetOwner():GetFName():ToString() end)
+        P(string.format("PPC %s owner=%s enabled=%s unbound=%s priority=%s blendw=%s", nameOf(c), own, tostring(try(function() return c.bEnabled end)), tostring(try(function() return c.bUnbound end)), tostring(try(function() return c.Priority end)), tostring(try(function() return c.BlendWeight end))))
+    end
+    P("PPC count=" .. npc)
+    -- level / ocean actors by class
+    for _, cn in ipairs({ "BP_Ocean_C", "UWEWaterBodyOcean" }) do
+        for _, a in ipairs(findAll(cn)) do
+            local loc, sc = "?", "?"
+            pcall(function() loc = fmtV(a:K2_GetActorLocation()) end)
+            pcall(function() sc = fmtV(a:GetActorScale3D()) end)
+            P(string.format("OCEANACTOR %s class=%s loc=(%s) scale=(%s) level=%s", nameOf(a), cn, loc, sc, tostring(try(function() return a:GetLevel():GetFullName() end))))
+        end
+    end
+    pcall(function() verbs.envprobe(label) end)
+    return true, "watersys done"
+end
 -- DIAGNOSTIC (engine mode only, exploration): run run\<FILE>.lua in the game thread with the mod helpers in scope; its return value is logged.
 -- Lets an input-injection experiment be changed without relaunching the game (UE4SS reads the mod Lua only at launch).
+-- ---------------------------------------------------------------- story goal verbs + terrain census (test-only, 2026-11-23, vanish_proof)
+local function findGoal(name)
+    for _, g in ipairs(findAll("UWEStoryGoal")) do
+        if nameOf(g) == name then return g end
+    end
+    return nil
+end
+local function goalStatics()
+    local st = nil
+    pcall(function() st = StaticFindObject("/Script/UWEStoryGoals.Default__UWEStoryGoalsStatics") end)
+    if not isValid(st) then
+        for _, o in ipairs(FindAllOf("UWEStoryGoalsStatics") or {}) do if isValid(o) then st = o; break end end
+    end
+    return isValid(st) and st or nil
+end
+-- storygoalstate <DA name>: logs and returns whether the goal is unlocked (UWEStoryGoalsStatics:IsStoryGoalUnlocked)
+function verbs.storygoalstate(args)
+    local name = tostring(args or ""):match("^%s*([%w_%-]+)%s*$")
+    if not name then return false, "usage: storygoalstate DA_Name" end
+    local g, st, pc = findGoal(name), goalStatics(), getPC()
+    if not g then log("STORYGOAL state " .. name .. " NOT_LOADED"); return false, "goal not loaded" end
+    if not st or not pc then return false, "no statics or pc" end
+    local okr, r = pcall(function() return st:IsStoryGoalUnlocked(pc:GetWorld(), g, pc.PlayerState) end)
+    log(string.format("STORYGOAL state %s ok=%s unlocked=%s", name, tostring(okr), tostring(r)))
+    return okr, "unlocked=" .. tostring(r)
+end
+-- storygoal <DA name>: unlocks the goal. Method order: UWEStoryGoalsWorldSubsystem:UnlockStoryGoal(goal, pawn, true),
+-- UWEStoryGoalsStatics:UnlockPlayerStoryGoal(world, goal, PlayerState), UnlockWorldStoryGoal(world, goal). Logs the method that did not raise.
+function verbs.storygoal(args)
+    local name = tostring(args or ""):match("^%s*([%w_%-]+)%s*$")
+    if not name then return false, "usage: storygoal DA_Name" end
+    local g = findGoal(name)
+    if not g then log("STORYGOAL unlock " .. name .. " NOT_LOADED"); return false, "goal not loaded" end
+    local pc = getPC()
+    if not pc then return false, "no pc" end
+    local pawn = getPawn(pc)
+    local sub, st = nil, goalStatics()
+    pcall(function() local s = FindFirstOf("UWEStoryGoalsWorldSubsystem"); if isValid(s) then sub = s end end)
+    local world, ps = nil, nil
+    pcall(function() world = pc:GetWorld() end)
+    pcall(function() ps = pc.PlayerState end)
+    local attempts = {
+        { "subsystem", function() sub:UnlockStoryGoal(g, pawn, true) end },
+        { "player", function() st:UnlockPlayerStoryGoal(world, g, ps) end },
+        { "world", function() st:UnlockWorldStoryGoal(world, g) end },
+    }
+    for _, a in ipairs(attempts) do
+        local ok, err = pcall(a[2])
+        log(string.format("STORYGOAL unlock %s via %s ok=%s %s", name, a[1], tostring(ok), ok and "" or shortErr(err)))
+        if ok then return true, "via " .. a[1] end
+    end
+    return false, "all methods failed"
+end
+-- terraincensus <label>: read-only, one line per prefix (SM_origin_tile_, SM_spot1_tile_) + the lifepod. Distinguishes gone / hidden / not rendered.
+function verbs.terraincensus(args)
+    local label = tostring(args ~= "" and args or "census")
+    local function P(s) log("TCENSUS " .. label .. " " .. s) end
+    local now = nil
+    pcall(function() now = StaticFindObject("/Script/Engine.Default__GameplayStatics"):GetTimeSeconds(getPC():GetWorld()) end)
+    local function stats(a, S)
+        S.found = S.found + 1
+        if isValid(a) then S.valid = S.valid + 1 else return end
+        local okh, h = pcall(function() return a.bHidden end)
+        if okh and h then S.hidden = S.hidden + 1 end
+        local comp = nil
+        pcall(function() comp = a.StaticMeshComponent end)
+        if not isValid(comp) then pcall(function() comp = a.RootComponent end) end
+        if isValid(comp) then
+            local okv, v = pcall(function() return comp:IsVisible() end)
+            if okv and v then S.vis = S.vis + 1 end
+            local okg, hg = pcall(function() return comp.bHiddenInGame end)
+            if okg and hg then S.hig = S.hig + 1 end
+            local okR, rg = pcall(function() return comp:IsRegistered() end)
+            if okR and rg then S.reg = S.reg + 1 end
+        else
+            S.nocomp = S.nocomp + 1
+        end
+        local okw, w = pcall(function() return a:WasRecentlyRendered(1.0) end)
+        if okw then S.rcallable = S.rcallable + 1; if w then S.recent = S.recent + 1 end end
+        local okl, lt = pcall(function() return a:GetLastRenderTime() end)
+        if okl and type(lt) == "number" and now then
+            S.lcallable = S.lcallable + 1
+            local age = now - lt
+            if S.minAge == nil or age < S.minAge then S.minAge = age end
+        end
+    end
+    local prefixes = { "SM_origin_tile_", "SM_spot1_tile_" }
+    local S = {}
+    for _, p in ipairs(prefixes) do S[p] = { found = 0, valid = 0, hidden = 0, vis = 0, hig = 0, reg = 0, nocomp = 0, recent = 0, rcallable = 0, lcallable = 0 } end
+    local okA, errA = pcall(function()
+        for _, a in ipairs(findAll("StaticMeshActor")) do
+            -- imported tiles are named StaticMeshActor_N; only the MESH asset is SM_origin_tile_* (research/03), so match the mesh name too
+            local nm = nameOf(a)
+            local mnm = ""
+            pcall(function()
+                local m = a.StaticMeshComponent.StaticMesh
+                if isValid(m) then mnm = nameOf(m) end
+            end)
+            for _, p in ipairs(prefixes) do
+                if nm:sub(1, #p) == p or mnm:sub(1, #p) == p then stats(a, S[p]) end
+            end
+        end
+    end)
+    if not okA then P("scan error " .. shortErr(errA)) end
+    for _, p in ipairs(prefixes) do
+        local s = S[p]
+        P(string.format("%s found=%d valid=%d bHidden=%d compVisible=%d hiddenInGame=%d registered=%d nocomp=%d wasRecentlyRendered(1s)=%d/%d minRenderAge=%s (callable %d) tnow=%s",
+            p, s.found, s.valid, s.hidden, s.vis, s.hig, s.reg, s.nocomp, s.recent, s.rcallable, s.minAge and string.format("%.1f", s.minAge) or "n/a", s.lcallable, now and string.format("%.1f", now) or "?"))
+    end
+    local pods, podInfo = 0, ""
+    pcall(function()
+        for _, a in ipairs(findAll("BP_StaticLifepod_Surface_C")) do
+            pods = pods + 1
+            local hid, rec, vis = "?", "?", "?"
+            pcall(function() hid = tostring(a.bHidden) end)
+            pcall(function() rec = tostring(a:WasRecentlyRendered(1.0)) end)
+            pcall(function() vis = tostring(a.RootComponent:IsVisible()) end)
+            local hull = "?"
+            pcall(function() hull = tostring(a.Hull:IsVisible()) end)
+            podInfo = podInfo .. string.format(" [%s bHidden=%s rootVisible=%s hullVisible=%s wasRecentlyRendered=%s]", nameOf(a), hid, vis, hull, rec)
+        end
+    end)
+    P(string.format("LIFEPOD count=%d%s", pods, podInfo))
+    local pc = getPC()
+    local pawnz = "?"
+    pcall(function() local l = getPawn(pc):K2_GetActorLocation(); pawnz = string.format("%.0f,%.0f,%.0f", l.X, l.Y, l.Z) end)
+    P("PAWN " .. pawnz)
+    return true, string.format("origin=%d/%d spot1=%d/%d pods=%d", S[prefixes[1]].valid, S[prefixes[1]].found, S[prefixes[2]].valid, S[prefixes[2]].found, pods)
+end
 function verbs.exec(args)
     local name = args:match("^([%w_%-%.]+)$")
     if not name then return false, "usage: exec FILE (file name inside run\\)" end
@@ -867,6 +1212,67 @@ function verbs.exec(args)
     if setfenv then setfenv(chunk, env) else debug.setupvalue(chunk, 1, env) end
     local ok, res = pcall(chunk)
     return ok, shortErr(res)
+end
+-- TEST TRIGGER ONLY: runs the SN2Tadpole spawn logic (same code as its F4 key); result lines are logged by SN2Tadpole as [SN2Tadpole] ...
+function verbs.tadpole()
+    local chunk, err = loadfile(MOD_DIR .. "\\..\\SN2Tadpole\\Scripts\\tadpole_spawn.lua")
+    if not chunk then return false, shortErr(err) end
+    local okc, spawn = pcall(chunk)
+    if not okc or type(spawn) ~= "function" then return false, shortErr(spawn) end
+    local ok, a, b = pcall(spawn)
+    return ok and a and true or false, tostring(b or a)
+end
+-- TEST TRIGGER ONLY: runs the SN2BugShot report code (same as its F1 key); result line [SN2BugShot] REPORT <id> ...
+function verbs.bugshot()
+    local chunk, err = loadfile(MOD_DIR .. "\\..\\SN2BugShot\\Scripts\\bugshot.lua")
+    if not chunk then return false, shortErr(err) end
+    local okc, report = pcall(chunk)
+    if not okc or type(report) ~= "function" then return false, shortErr(report) end
+    local ok, a, b = pcall(report, "test")
+    return ok and a and true or false, tostring(b or a)
+end
+-- TEST TRIGGERS for the SN2BugShot popup (same code path as F1 / Ctrl+Enter / Esc; real keys are not simulated)
+local bugPopup = nil
+local function popupApi()
+    if bugPopup then return bugPopup end
+    local chunk, err = loadfile(MOD_DIR .. "\\..\\SN2BugShot\\Scripts\\popup.lua")
+    if not chunk then return nil, shortErr(err) end
+    local okc, api = pcall(chunk)
+    if not okc or type(api) ~= "table" then return nil, shortErr(api) end
+    bugPopup = api
+    return api
+end
+function verbs.bugreport_open()
+    local api, err = popupApi()
+    if not api then return false, err end
+    local ok, a, b = pcall(api.open, "test")
+    return ok and a and true or false, tostring(b or a)
+end
+function verbs.bugreport_type(args)
+    local api, err = popupApi()
+    if not api then return false, err end
+    local ok = api.setText(tostring(args or ""))
+    return ok, ok and "typed" or "popup not open"
+end
+function verbs.bugreport_submit()
+    local api, err = popupApi()
+    if not api then return false, err end
+    local ok = api.submit()
+    return ok and true or false, ok and "submitted" or "popup not open"
+end
+function verbs.bugreport_cancel()
+    local api, err = popupApi()
+    if not api then return false, err end
+    local ok = api.cancel()
+    return ok and true or false, ok and "cancelled" or "popup not open"
+end
+-- detail: "open=<bool> phase=<p> paused=<bool> time=<game s> result=<n> cursor=<bool> text=<box text>"
+function verbs.bugreport_state()
+    local api, err = popupApi()
+    if not api then return false, err end
+    local s = api.state()
+    return true, string.format("open=%s phase=%s paused=%s time=%s result=%s cursor=%s text=%s", tostring(s.open), tostring(s.phase),
+        tostring(s.paused), s.time and string.format("%.3f", s.time) or "?", tostring(s.result), tostring(s.cursor), tostring(s.text or ""))
 end
 function verbs.quit()
     local pc = getPC()
@@ -1141,6 +1547,28 @@ if ENGINE then
     log("ENGINE input mode armed: polling " .. CMD_FILE .. " every 100 ms")
 end
 
+-- DIAGNOSTIC (2026-11-26, brownwater): plan.autoPioneer = true clicks through the stock L_Main character select ("Select pioneer to print")
+-- that the menu chain does not know. Test-only; remove when the menu chain handles the screen.
+if ENGINE and plan.name == "brownwater_lmain" then   -- (harness arm() passes only whitelisted plan keys)
+    local stage, ticks = 0, 0
+    LoopAsync(1500, function()
+        ticks = ticks + 1
+        ExecuteInGameThread(function()
+            pcall(function()
+                if stage == 0 then
+                    local ok, d = verbs.click("auto name:WBP_CharacterSelectButton_0")
+                    if ok then stage = 1; log("AUTOPIONEER select " .. tostring(d)) elseif ticks % 10 == 1 then log("AUTOPIONEER wait " .. tostring(d)) end
+                elseif stage == 1 then
+                    local ok, d = verbs.click("auto name:Play@CharacterSelect")
+                    log("AUTOPIONEER confirm ok=" .. tostring(ok) .. " " .. tostring(d))
+                    if ok then stage = 2 end
+                end
+            end)
+        end)
+        return stage >= 2 or ticks > 400
+    end)
+end
+
 -- Q2 monitor (hidden-desktop investigation 2026-11-22, passive): while run\q2.txt exists, log every 500 ms
 -- "Q2 <HH:MM:SS> world=.. pawn=(x,y,z) yaw=.. pitch=.." so real input leaking into the game shows up as unexplained changes
 if ENGINE then
@@ -1166,6 +1594,7 @@ if ENGINE then
     end)
 end
 
+-- TEST-ONLY keys: this whole file returns early ("idle (no plan)") unless the harness armed a plan, so these binds never exist in normal play.
 -- F8 (and probably F9/F10) are bound by the game itself (F8 opens the Feedback panel), so the teleports use Ctrl+Shift+Z/X/C/V/B
 local FKEYS = { Key.Z, Key.X, Key.C, Key.V, Key.B }
 for n, k in ipairs(FKEYS) do
