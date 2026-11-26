@@ -6,6 +6,6 @@
 . "$(dirname "$0")/sn2_env.sh"
 LOG="$SN2_UE4SS_DIR/UE4SS.log"
 EXTRA="${1:-}"
-PAT='\[(SN2WorldProbe|SN2IntroProbe)\] (loaded|F[0-9]+|Shift|Ctrl|placed|SUCCESS|generated seafloor|REMOVED|RESTORED|wrote|.*failed)|\[Lua\] .*(rror|xception)|Crash'
+PAT='\[(SN2BugShot|SN2Tadpole|SN2AutoTest|SN2Census)\] (loaded|F[0-9]+|Ctrl|REPORT|wrote|.*failed)|\[Lua\] .*(rror|xception)|Crash'
 [ -n "$EXTRA" ] && PAT="$PAT|$EXTRA"
 tail -n 0 -F "$LOG" 2>/dev/null | grep -E --line-buffered "$PAT"

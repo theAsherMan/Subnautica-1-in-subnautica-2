@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copy a mod from src/mods into the game and into the drop-in install bundle.
-# Usage: bash src/tools/install_mod.sh <ModName>        e.g. bash src/tools/install_mod.sh SN2WorldProbe
+# Usage: bash src/tools/install_mod.sh <ModName>        e.g. bash src/tools/install_mod.sh SN2BugShot
 # Copies Scripts/ and data/ (if present), creates enabled.txt, and registers the mod in mods.txt. Paths come from local.config.
 set -euo pipefail
 . "$(dirname "$0")/sn2_env.sh"

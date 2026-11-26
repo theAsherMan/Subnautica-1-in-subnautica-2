@@ -82,9 +82,9 @@ If the system drive is small, put `<ModkitDir>` on another drive; section 7 keep
 2. Unzip UE4SS into `<game>\Subnautica2\Binaries\Win64\`. Launch the game once; `Binaries\Win64\ue4ss\UE4SS.log` should appear.
 3. Install a mod from this repo by running this in Git Bash:
    ```bash
-   bash src/tools/install_mod.sh SN2WorldProbe
+   bash src/tools/install_mod.sh SN2BugShot
    ```
-   This copies `src/mods/SN2WorldProbe` into the game's `ue4ss\Mods\` folder (found via `SN2_GAME_DIR`) and enables it.
+   This copies `src/mods/SN2BugShot` into the game's `ue4ss\Mods\` folder (found via `SN2_GAME_DIR`) and enables it.
 3b. To skip the intro (new games start at the surface with an empty hotbar), launch the game with `-OverridePlayerStart=Shallows`: `bash src/tools/launch_game.sh`
    (or add that text to the game's Steam launch options). No mod is needed for this.
 4. **Fully quit and restart the game** after every mod change. UE4SS only reads Lua files at launch.
