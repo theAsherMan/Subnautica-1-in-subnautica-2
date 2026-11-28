@@ -137,6 +137,12 @@ Creates mod `SN2Terrain` (ModActor + PAL, same as New mod), builds `/Game/Mods/S
 material from `SM_CG_RockRubble_BoulderMed_6a` slot 0, then adds StaticMeshComponent `Seafloor` to ModActor at relative (-331747, 420670, -6224) —
 assumes BPModLoader spawns ModActor at the world origin (UNTESTED). Deletion of SN2 terrain stays in Lua (SN2TerrainEdit regions) for this test; porting it
 to the ModActor graph is the follow-up.
+### Editor Python: AssetUserData on a StaticMesh (2026-11-28, VERIFIED in editor, in game via `04`)
+- `cls = unreal.load_class(None, "/Script/UWEAssetRegistry.UWEAssetUserData")`; `mesh.add_asset_user_data_of_class(cls)` returns the object; `mesh.get_asset_user_data_of_class(cls)` reads it back. The array property is PascalCase: `ud.set_editor_property("DataAssets", [...])` (`data_assets` raises `Failed to find property`). `unreal.load_asset("/Game/Data/SurfaceSpawnData/DA_SandSurfaceData")` works (reported as PrimaryDataAsset). Call `mesh.modify()` and `eal.save_asset(path, only_if_is_dirty=False)`.
+- The editor keeps imported modules between `ue_run.py` runs: a shared helper next to the script needs `sys.path.insert(0, dirname(__file__))` and `importlib.reload(mod)`. `__file__` is defined in `MODE_EXEC_FILE`.
+- `ue_run.py -c "unreal.SystemLibrary.quit_editor()"` closes the editor cleanly. VERIFIED (2026-11-28).
+- `launch_editor.sh` fails if another session takes the idle lock between acquire and launch; use `SN2_LOCK_WAIT=<s>` to acquire and launch in one command.
+
 
 ## Modkit facts from its README (UNTESTED here until the editor opens)
 - Game content in the editor is read-only (cooked). Right-click → "Make Uncooked Blueprint Copy" / widget / anim BP copies; cooked data assets can be copy-pasted into a mod.
