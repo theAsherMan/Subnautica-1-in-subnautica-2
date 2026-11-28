@@ -26,11 +26,14 @@ If it is missing, ask the user for the paths and create it.
   `analysis.md`, record the result in `research/`). New SN1 references come only from `src/tools/sn1_live.py capture` in the user's own SN1 session.
 - Modkit (Unreal editor) work: `src/modkit/` — editor Python scripts in `scripts/`, runner `tools/ue_run.py` (runs them inside the open editor),
   `tools/cook_install.sh <Mod> <ChunkId>`, `tools/launch_editor.sh` (opens the editor; use it instead of double-clicking `Launch-Editor.cmd`), editor add-on source `plugins/SN2GraphTools` (copied into the modkit project). See `research/08_modkit_setup.md`.
+- Static analysis: `src/tools/static_analysis.sh` = a conversation with the `static-analyst` agent (Opus, xhigh, read-only) about the installed SN1/SN2
+  game code. Investigator only (rules in `.claude/agents/investigator.md`); the planner does not use it. Recipe: `research/01_runbook.md` "Static analysis".
 
 ## Parallel sessions: one heavy job at a time
 RAM allows only one of these at a time: the game, the modkit editor, a cook, Subnautica 1 (any SN1 launch, incl. `sn1_run.sh`), or the SN1 builder / terrain extractor. Several sessions may run at once, so they share the lock `bash src/tools/heavy_lock.sh`.
 - This list is the single source of truth: `research/01_runbook.md` and the agent files in `.claude/agents/` point here instead of copying it. When you change it, also update `SN2_HEAVY_PROCS` in `src/tools/heavy_lock.sh` (the process-name prefixes the lock counts as heavy work), and make sure the new job's launcher script takes the lock.
 - Check `heavy_lock.sh status` before planning heavy work.
+- Static analysis (`static_analysis.sh`) is not a heavy job: it only reads, never takes the lock, and may run while another session holds it.
 - launch_game / install_mod / launch_editor / ue_run / cook_install / autotest take or require the lock themselves, and refuse with exit 4, 5 or 2 when another session holds it.
 - To wait for the lock, run `heavy_lock.sh acquire <what> --wait <s>` in the background. Do not poll.
 - When done: close what you started (game or editor), then run `heavy_lock.sh release`. Never `release --force` another session's lock unless the user says so.
@@ -49,7 +52,8 @@ The `research/` folder is the project's memory between sessions. Update it **as 
   `05` console, `06` assets, `07` mod code, `01` process/tooling). Create a new numbered file only for a genuinely new area (e.g. SN1 file formats),
   and list it in the `00_overview.md` file table.
 - Every claim carries a status: **VERIFIED (date)** = seen in game, **LOGGED (date)** = log says it ran but effect unconfirmed, **UNTESTED**, **FAILED (date)** with the reason.
-  Only upgrade a status with new evidence; never mark something VERIFIED on log output alone.
+  Only upgrade a status with new evidence; never mark something VERIFIED on log output alone. Static analysis is information, not evidence:
+  its claims stay **UNTESTED (static analysis <date>, <conversation folder>)** until a test confirms them.
 - Failures and dead ends are worth recording (what was tried, the exact error text, why it failed) so they are not retried blindly.
 - **Condense once solved.** While a problem is open, keep the full working notes. When it is solved, or an approach is replaced:
   - Rewrite its section as the current recipe or state, with statuses.

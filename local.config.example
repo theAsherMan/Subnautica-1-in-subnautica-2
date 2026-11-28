@@ -13,3 +13,6 @@ SN2_MODKIT_DIR="D:/SN2Modkit"
 
 # Steam install folder of Subnautica 1 (contains Subnautica_Data\). Read-only source for the SN1 -> SN2 world converter. Optional until that converter exists.
 SN1_GAME_DIR="C:/Program Files (x86)/Steam/steamapps/common/Subnautica"
+
+# Optional: the Claude Code CLI used by src/tools/static_analysis.sh. If unset: PATH, then the newest VS Code extension's bundled claude.exe.
+# CLAUDE_BIN="C:/path/to/claude.exe"
