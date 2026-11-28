@@ -7,7 +7,9 @@ and in the instruction files outside it (OUTSIDE); an image link whose file is m
 (unless in EXEMPT); a lone CR (CRLF line ends are fine) or a C1 control character.
 Also an error: a heading tagged "— OPEN (YYYY-MM-DD)" with no line in status.md "Next steps", or a Next steps
 item without a `research/<file>.md "<heading>"` reference to an OPEN heading.
-Warnings: a note over 15 KB; an image file over 1 MB; a reference to an old numbered stub.
+Warnings: a note over 15 KB; an image file over 1 MB.
+The old numbered files (00_overview.md ... 12_sn1_assets.md) were deleted 2026-11-28; a reference to one is an
+unresolved-reference error (recover old text with git show 7221ba9:research/<file>).
 A reference written as  `research/x/y.md`, "phrase"  (comma form) is not heading-checked.
 Images are allowed (user, 2026-11-28): convention research/<folder>/img/<name>.png, linked relatively.
 """
@@ -27,13 +29,6 @@ ERR_BYTES = 25 * 1024
 # files allowed over the hard limit (path relative to research/); keep this short
 EXEMPT = {
     "crashes/gc_watchdog_renderpipe_2026-11-25.md": "one moved diagnostic series, split later",
-}
-# the old numbered files are kept as short pointer stubs
-STUBS = {
-    "00_overview.md", "01_runbook.md", "02_world_systems_reference.md", "03_creating_terrain.md",
-    "04_placing_features.md", "05_console_commands.md", "06_asset_index.md", "07_mods_reference.md",
-    "08_modkit_setup.md", "09_intro_and_world_replacement.md", "10_sn1_world_data.md",
-    "11_sn1_modding.md", "12_sn1_assets.md",
 }
 IMG_EXT = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".tga")
 IMG_WARN_BYTES = 1024 * 1024
@@ -163,8 +158,6 @@ def main():
                 if rel not in texts:
                     errs.append("%s:%d: unresolved reference research/%s" % (f, i, rel))
                     continue
-                if rel in STUBS and f not in STUBS:
-                    warns.append("%s:%d: reference to old stub research/%s" % (f, i, rel))
                 before = line[:m.start()]
                 comma = line[m.end("path"):].lstrip("`").startswith(",")
                 if comma:
@@ -222,7 +215,7 @@ def main():
                 for tx in hit:
                     pointed.add((rel, tx))
         for f in md:
-            if f in STUBS or f == "status.md":
+            if f == "status.md":
                 continue
             for lv, tx in heads(f):
                 if OPEN.search(tx) and (f, tx) not in pointed:
