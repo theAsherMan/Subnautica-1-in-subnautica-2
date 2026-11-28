@@ -52,11 +52,16 @@ The `research/` folder is the project's memory between sessions. Update it **as 
 - New fact, recipe, class/property name, path, signature or gotcha → add it to the matching file (`sn2/` game systems and assets, `terrain/`, `features/`, `sn1/`,
   `code/` mods and modkit, `process/` tooling, `crashes/`). Create a new file only for a genuinely new area, in the matching folder,
   and list it in that folder's README.md; run `python -I src/tools/research_lint.py` after editing `research/` (size limits 15 KB soft, 25 KB hard).
+- **Open topics** get ` — OPEN (YYYY-MM-DD)` (date opened) at the end of their heading, and exactly one line in `research/status.md` "Next steps"
+  that points at that heading. The lint checks both directions. On closing, remove the tag and the status.md line, then condense.
+  Full rule: `research/README.md` "Open topics".
+- **A file over 15 KB:** condense first, then split by topic along `##` sections (never by size or date), name the new file after its subject,
+  and keep the original name for the main topic. Full rule: `research/README.md` "Splitting a file".
 - Every claim carries a status: **VERIFIED (date)** = seen in game, **LOGGED (date)** = log says it ran but effect unconfirmed, **UNTESTED**, **FAILED (date)** with the reason.
   Only upgrade a status with new evidence; never mark something VERIFIED on log output alone. Static analysis is information, not evidence:
   its claims stay **UNTESTED (static analysis <date>, <conversation folder>)** until a test confirms them.
 - Failures and dead ends are worth recording (what was tried, the exact error text, why it failed) so they are not retried blindly.
-- **Condense once solved.** While a problem is open, keep the full working notes. When it is solved, or an approach is replaced:
+- **Condense once solved.** While a problem is open (OPEN-tagged), keep the full working notes. When it is solved, or an approach is replaced:
   - Rewrite its section as the current recipe or state, with statuses.
   - Shorten each failed attempt to one line in a "Dead ends" list: date, what was tried, exact error or symptom, why it failed (keep **FAILED (date)**).
   - Delete run-by-run narratives, superseded plans and "Update:" / "superseded by" chains. Keep a run ID only where it is the evidence for a current claim.

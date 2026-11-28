@@ -1,6 +1,6 @@
 # Vehicles and the SN2Tadpole mod
 
-Sources: 04_placing_features.md "Vehicles: spawning a Tadpole (2026-11-23, mod `SN2Tadpole`,", 07_mods_reference.md "SN2Tadpole (new 2026-11-23, `src/mods/SN2Tadpole/Scripts/{ma" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Full pass-1 notes: `git show 3449200:research/features/vehicles.md`.
 
 ## Vehicles: spawning a Tadpole (2026-11-23, mod `SN2Tadpole`, run `autotest/20261123_164556_tadpole`, plan `tadpole.json`, DONE 156 s)
 - `FindFirstOf("SN2CheatManager"):Spawn("Tadpole")` spawns a real vehicle: **VERIFIED (2026-11-23)** UE4SS.log `cheat produced 1 new Tadpole actor(s)`, class `BP_Tadpole_C` (native `SN2Tadpole`, found with `FindAllOf("SN2Tadpole")`). The cheat places it near the player; `K2_SetActorLocation` + `K2_SetActorRotation` then moved it: final loc read back (-731,-951,-143), as requested.

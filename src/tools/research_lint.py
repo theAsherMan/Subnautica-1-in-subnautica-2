@@ -2,10 +2,14 @@
 """Lint the research/ notes. Run: python -I src/tools/research_lint.py [--root <research dir>]
 
 Errors (exit 1): a topic file not listed in its folder README; a `research/...md` reference or markdown
-link that does not resolve (file, optional section number, optional quoted heading); a file over 25 KB
-(unless in EXEMPT); an image; a lone CR (CRLF line ends are fine) or a C1 control character.
-Warnings: a file over 15 KB; a reference to an old numbered stub.
+link that does not resolve (file, optional section number, optional quoted heading), checked in research/
+and in the instruction files outside it (OUTSIDE); an image link whose file is missing; a note over 25 KB
+(unless in EXEMPT); a lone CR (CRLF line ends are fine) or a C1 control character.
+Also an error: a heading tagged "— OPEN (YYYY-MM-DD)" with no line in status.md "Next steps", or a Next steps
+item without a `research/<file>.md "<heading>"` reference to an OPEN heading.
+Warnings: a note over 15 KB; an image file over 1 MB; a reference to an old numbered stub.
 A reference written as  `research/x/y.md`, "phrase"  (comma form) is not heading-checked.
+Images are allowed (user, 2026-11-28): convention research/<folder>/img/<name>.png, linked relatively.
 """
 import argparse
 import os
@@ -13,6 +17,10 @@ import re
 import sys
 
 sys.dont_write_bytecode = True
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 WARN_BYTES = 15 * 1024
 ERR_BYTES = 25 * 1024
@@ -28,6 +36,11 @@ STUBS = {
     "11_sn1_modding.md", "12_sn1_assets.md",
 }
 IMG_EXT = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".tga")
+IMG_WARN_BYTES = 1024 * 1024
+# instruction files outside research/ whose research/ references are checked (globs relative to the repo)
+OUTSIDE = ["CLAUDE.md", ".claude/CLAUDE.md", ".claude/agents/*.md", ".claude/skills/*/SKILL.md",
+           "README.md", "samples/README.md"]
+IMGLINK = re.compile(r"!\[[^\]]*\]\((?P<t>[^)\s]+)\)|<img\b[^>]*\bsrc=[\"'](?P<s>[^\"']+)[\"']", re.I)
 
 REF = re.compile(
     r"research/(?P<path>[A-Za-z0-9_./-]+?\.md)`?"
@@ -35,6 +48,8 @@ REF = re.compile(
     r"(?P<q> [\"'](?P<qt>[^\"'\n]{2,120}?)[\"'])?)")
 MDLINK = re.compile(r"\]\((?P<t>[^)\s#]+\.md)(?:#[^)\s]*)?\)")
 HEAD = re.compile(r"^(#{1,6}) (.*)$")
+# an open topic: heading ends with " — OPEN (YYYY-MM-DD)" (date opened); see research/README.md "Open topics"
+OPEN = re.compile(r"[—-] OPEN \(\d{4}-\d{2}-\d{2}\)\s*$")
 
 
 def norm(s):
@@ -97,11 +112,9 @@ def main():
             warns.append("%s: %d bytes (soft limit %d)" % (f, n, WARN_BYTES))
     for f in files:
         if f.lower().endswith(IMG_EXT):
-            errs.append("%s: image file in research/" % f)
-    for f in md:
-        t = texts[f]
-        if "![" in t or re.search(r"<img\b", t, re.I):
-            errs.append("%s: image markup" % f)
+            sz = os.path.getsize(os.path.join(root, f))
+            if sz > IMG_WARN_BYTES:
+                warns.append("%s: image %d bytes (over %d; consider a smaller JPG/PNG)" % (f, sz, IMG_WARN_BYTES))
 
     # folder READMEs list every topic file
     for f in md:
@@ -123,8 +136,18 @@ def main():
             hcache[rel] = headings(texts[rel])
         return hcache[rel]
 
-    for f in md:
-        lines = texts[f].split("\n")
+    # instruction files outside research/: only their research/ references are checked
+    import glob
+    repo = os.path.dirname(root)
+    outside = {}
+    for g in OUTSIDE:
+        for p in sorted(glob.glob(os.path.join(repo, g))):
+            rel = "../" + os.path.relpath(p, repo).replace(os.sep, "/")
+            outside[rel] = read(p).decode("utf-8", "replace")
+
+    for f in md + sorted(outside):
+        is_out = f in outside
+        lines = (outside[f] if is_out else texts[f]).split("\n")
         fence = False
         for i, line in enumerate(lines, 1):
             s = line.strip()
@@ -157,6 +180,8 @@ def main():
                     qp = qprefix(m.group("qt"))
                     if qp and not any(norm(tx).startswith(qp) for lv, tx in hs):
                         errs.append("%s:%d: research/%s has no heading \"%s\"" % (f, i, rel, m.group("qt")))
+            if is_out:
+                continue  # outside files: markdown links point anywhere in the repo, not checked here
             for m in MDLINK.finditer(line):
                 tgt = m.group("t")
                 if "://" in tgt:
@@ -164,6 +189,44 @@ def main():
                 full = os.path.normpath(os.path.join(os.path.dirname(f), tgt)).replace(os.sep, "/")
                 if full not in texts:
                     errs.append("%s:%d: broken link %s" % (f, i, tgt))
+            for m in IMGLINK.finditer(line):
+                tgt = m.group("t") or m.group("s")
+                if "://" in tgt or tgt.startswith("data:"):
+                    continue
+                full = os.path.normpath(os.path.join(root, os.path.dirname(f), tgt))
+                if not os.path.isfile(full):
+                    errs.append("%s:%d: missing image %s" % (f, i, tgt))
+
+    # OPEN topics <-> status.md "Next steps", both directions
+    if "status.md" in texts:
+        items, sec = [], False
+        for i, line in enumerate(texts["status.md"].split("\n"), 1):
+            if line.startswith("## "):
+                sec = line.startswith("## Next steps")
+                continue
+            if sec and re.match(r"^\d+\. ", line):
+                items.append((i, line))
+        pointed = set()
+        for i, line in items:
+            refs = [m for m in REF.finditer(line) if m.group("qt") and not m.group("sec")]
+            if not refs:
+                errs.append("status.md:%d: Next steps item has no `research/<file>.md \"<OPEN heading>\"` reference" % i)
+                continue
+            for m in refs:
+                rel, qp = m.group("path"), qprefix(m.group("qt"))
+                if rel not in texts:
+                    continue  # reported above as unresolved
+                hit = [tx for lv, tx in heads(rel) if norm(tx).startswith(qp)]
+                if hit and not any(OPEN.search(tx) for tx in hit):
+                    errs.append("status.md:%d: research/%s \"%s\" is not an OPEN heading" % (i, rel, m.group("qt")))
+                for tx in hit:
+                    pointed.add((rel, tx))
+        for f in md:
+            if f in STUBS or f == "status.md":
+                continue
+            for lv, tx in heads(f):
+                if OPEN.search(tx) and (f, tx) not in pointed:
+                    errs.append("%s: OPEN heading \"%s\" has no line in status.md Next steps" % (f, tx))
 
     for w in warns:
         print("WARN  " + w)

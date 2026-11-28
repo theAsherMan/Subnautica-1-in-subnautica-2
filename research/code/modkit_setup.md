@@ -1,6 +1,6 @@
 # Modkit setup
 
-Sources: 08_modkit_setup.md "Modkit setup (Subnautica2-Project cooked editor)", 08_modkit_setup.md "Requirements and reference timings", 08_modkit_setup.md "Layout", 08_modkit_setup.md "Steps and status", 08_modkit_setup.md "Keeping caches off the system drive (optional; done on the r", 08_modkit_setup.md "Modkit facts from its README (UNTESTED here until the editor", 00_overview.md "State of play" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass 2 (2026-11-28): setup is solved; tables kept as the install recipe, status tail merged (full notes: `git show 3449200:research/code/modkit_setup.md`). Editor scripting and cooks: `research/code/modkit_scripting.md`.
 
 ## Modkit setup (Subnautica2-Project cooked editor)
 
@@ -16,7 +16,7 @@ read-only and packages mods as IoStore pak chunks / content-only plugins.
 ## Layout
 | Path | Content |
 |---|---|
-| `<ModkitDir>\Subnautica2-Project\` | git clone of github.com/Subnautica2Modding/Subnautica2-Project, commit `827162c` (2026-10-07, "update for v0.1.2.2 (131439)" — matches game build CL-131439), latest tag `sn2-v0.1.2.0` |
+| `<ModkitDir>\Subnautica2-Project\` | git clone of github.com/Subnautica2Modding/Subnautica2-Project, commit `827162c` (2026-10-07, "update for v0.1.2.2 (131439)" - matches game build CL-131439), latest tag `sn2-v0.1.2.0` |
 | `<ModkitDir>\downloads\` | engine + FMOD archives |
 | `<ModkitDir>\UE_5.6_SN2\` | the custom engine (short path, no spaces) |
 | `<RepoDir>\src\modkit\` | our side: `Launch-Editor.cmd`, `tools\` (ue_run.py, cook_install.sh, splitzip.py), `scripts\` (editor Python), `plugins\SN2GraphTools` (source, copied into the project's `Plugins\`) |
@@ -30,7 +30,7 @@ read-only and packages mods as IoStore pak chunks / content-only plugins.
 | 4 | VS Installer: add component `Microsoft.VisualStudio.Component.VC.14.38.17.8.x86.x64` → toolset **14.38.33130** installed beside 14.40.33807. Must be launched elevated (`Start-Process ... -Verb RunAs`); non-elevated `--passive` fails with exit 5007 | VERIFIED 2026-11-15 |
 | 4b | Optional: keep Unreal/VS caches and temp files inside `<ModkitDir>` instead of the system drive. See "Keeping caches off the system drive" below | done on the reference machine |
 | 5 | User: link Epic account ↔ GitHub, accept the EpicGames org invite; without it github.com/Buckminsterfullerene02/UnrealEngine returns 404 (confirmed) | manual step |
-| 5/6 | Engine release "SN2-Engine-V4" = byte-split zip `SN2-Engine-V4.zip.001`–`.004` (3 × 1,992,294,400 B + 1,121,483,344 B = 7.10 GB) in `<ModkitDir>\downloads\`. Index: **243,797 members, 17.32 GiB unpacked**, single root `Engine/` (Plugins 8.0, Binaries 5.6, Source 1.5, Content 1.1, Intermediate 0.95 GiB). (A stray `Unconfirmed 524443.crdownload`, 1.68 GB, is an abandoned browser duplicate — safe to delete.) | VERIFIED 2026-11-15 |
+| 5/6 | Engine release "SN2-Engine-V4" = byte-split zip `SN2-Engine-V4.zip.001`–`.004` (3 × 1,992,294,400 B + 1,121,483,344 B = 7.10 GB) in `<ModkitDir>\downloads\`. Index: **243,797 members, 17.32 GiB unpacked**, single root `Engine/` (Plugins 8.0, Binaries 5.6, Source 1.5, Content 1.1, Intermediate 0.95 GiB). (A stray `Unconfirmed 524443.crdownload`, 1.68 GB, is an abandoned browser duplicate - safe to delete.) | VERIFIED 2026-11-15 |
 | 7 | User: fmod.com account → FMOD for Unreal 2.03.x for UE 5.6 Win64 (e.g. `fmodstudio20309ue5.6win64.zip`) into `<ModkitDir>\downloads\`. **Hard prerequisite**: repo ships `UnrealEditor-FMODStudio*.dll` but not FMOD's native `fmod.dll`/`fmodstudio.dll`/`*_vc.lib`/`resonanceaudio.dll` (license) → FMODStudio plugin cannot load without them | manual step |
 | 8 | `powershell -ExecutionPolicy Bypass -File setup-fmod.ps1 -FMODPluginZip <zip>` (copies the 9 native files from `FMODStudio\Binaries\Win64\` in the zip into `Plugins\FMODStudio\Binaries\Win64\`; it unzips to `%TEMP%\fmod_ue56_setup` → run with `$env:TEMP='<ModkitDir>\Temp'`). Used `fmodstudio20315ue5.6win64.zip` (2.03.15). Zip also has `fmod_haptics.dll`, which the script does not copy — if the editor log complains about it, copy it manually | VERIFIED 2026-11-15 (9 files present) |
 | 9 | Extract engine with `src\modkit\tools\splitzip.py` (reads the `.001…` parts as one virtual stream — no 7 GB concatenation, no 7-Zip needed; `list`/`test`/`extract`, CRC checked on extract, rejects `..` paths): `python -I tools/splitzip.py extract <ModkitDir>/downloads/SN2-Engine-V4.zip.001 <ModkitDir>/UE_5.6_SN2` → `<ModkitDir>\UE_5.6_SN2\Engine\...`; log `<ModkitDir>\extract_engine.log`. Took 764 s on an HDD; uses ~18 GB. Result: UE **5.6.1** (`Build.version` CompatibleChangelist 43139311), **installed build** (`Engine\Build\InstalledBuild.txt`), no `UnrealVersionSelector.exe` → "Switch Unreal Engine version" is unavailable; registered by hand instead: HKCU `Software\Epic Games\Unreal Engine\Builds` value `{<new GUID>}` = `<ModkitDir>/UE_5.6_SN2`, and the same GUID written to `"EngineAssociation"` in `Subnautica2.uproject` | VERIFIED 2026-11-15 |
@@ -63,9 +63,5 @@ After the first editor session, measure `%LOCALAPPDATA%\UnrealEngine` and `%TEMP
 - SN2EmptyWorld cook with the 16 SN1 terrain tile meshes (1.12 M triangles, Nanite, complex-as-simple), VERIFIED 2026-11-22 (cook log + `retoc.exe list --path --size <utoc>`): incremental cook about 4 min (16:28 to 16:32), `Packages Cooked: 17` (16 SM + map), installed `SN2EmptyWorld.ucas` 123.5 MB, `.utoc` lists `SN1Terrain/SM_spot1_tile_<i>_<k>.uasset` + `.ubulk` for all 16 tiles (about 11 MB uasset + 2-3 MB ubulk each), `L_SN2World.umap` 76.9 KB + `.ubulk` 209 KB, `ModActor.uasset`. `retoc list --path --size` is needed to see asset names (plain `list` shows only chunk ids). Still needs `SN2_ALLOW_ATTACH_ABORTS=1` for the 2 benign BP_Ocean WaterSpline lines. In-game load UNTESTED.
 - Timings 2026-11-23 (origin_fix1 rebuild, LOGGED): `launch_editor.sh` to first `ue_run` answer about 7 min; origin re-import (16 tiles, 1.9 M triangles) a few minutes; incremental cook 5 min 12 s (`Packages Cooked: 17`, installed `.ucas` 348,352,096 B).
 
-## State of play detail (moved from 00_overview.md, 2026-11-28)
-
-| Capability | Status |
-|---|---|
-| Modkit editor installed, game content mounted, scripted from the shell (`ue_run.py`) | VERIFIED 2026-11-16, see `research/code/modkit_setup.md` |
-| Asset (pak/IoStore) mods, modkit | UNTESTED |
+## Status (2026-11-28)
+Modkit editor installed, game content mounted, scripted from the shell (`ue_run.py`): **VERIFIED 2026-11-16**. Asset (pak/IoStore) mods from the modkit: the SN2Terrain pak loaded in game (**VERIFIED 2026-11-16**, `research/code/modkit_scripting.md` "Cook + install"); later cooks of SN2EmptyWorld/L_SN2World are in the same file and `research/sn2/README.md`.

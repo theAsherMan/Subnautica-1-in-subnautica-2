@@ -9,4 +9,5 @@ Facts about the SN2 game, its assets and our replacement map.
 - [l_sn2world_map.md](l_sn2world_map.md) — World replacement and the L_SN2World map.
 - [l_sn2world_pod.md](l_sn2world_pod.md) — L_SN2World lifepod components and fixes.
 - [l_sn2world_water.md](l_sn2world_water.md) — L_SN2World water volume fix.
+- [l_sn2world_water_region.md](l_sn2world_water_region.md) — Standalone water region in the map, Task B differences (OPEN).
 - [world_systems.md](world_systems.md) — Class and property names for zones, water, temperature, sky, audio, edge.

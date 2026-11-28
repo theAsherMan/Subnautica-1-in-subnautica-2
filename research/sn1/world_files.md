@@ -1,6 +1,6 @@
 # SN1 world files: install, grid, terrain format
 
-Sources: 10_sn1_world_data.md "10 — Subnautica 1 world data: files, formats, extraction pla", 10_sn1_world_data.md "1. Install and build", 10_sn1_world_data.md "2. `Build18\` inventory (VERIFIED 2026-11-19, listing)", 10_sn1_world_data.md "3. World grid and coordinates", 10_sn1_world_data.md "4. Terrain: `.optoctrees` format", 00_overview.md "State of play" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass 2 (2026-11-28): tail folded into a Status section (full notes: `git show 3449200:research/sn1/world_files.md`).
 
 ## 10 — Subnautica 1 world data: files, formats, extraction plan
 
@@ -106,8 +106,5 @@ Answers (decompiled with ilspycmd to `<Workspace>\sn1_decompiled\`: `LargeWorldS
 Size: a batch decoded to 1 m arrays is 160³ = 4.1 M voxels × 2 B ≈ 8 MB. Processing one batch at a time keeps RAM small.
 Triangle estimate (UNTESTED): roughly 16.7 km² of seafloor plus caves and islands at 1 m gives tens of millions to about 100 M raw triangles. Meshes must be decimated, and placement relies on Nanite.
 
-## State of play detail (moved from 00_overview.md, 2026-11-28)
-
-| Capability | Status |
-|---|---|
-| Reading Subnautica 1 terrain files | **Started 2026-11-19 (offline investigation, nothing implemented).** VERIFIED: data location, batch grid and origin, `.optoctrees` binary layout (parsed exactly), object caches (protobuf, ClassIds counted: 409 k cell objects), `prefabs.db` layout, biome map layout. Open: tree/child order, density encoding, type → material table. Protobuf transform fields VERIFIED 2026-11-26 (row "SN1 placed objects"). See `research/sn1/README.md` |
+## Status (2026-11-28)
+SN1 terrain reading: offline investigation started 2026-11-19. **VERIFIED:** data location, batch grid and origin, `.optoctrees` layout (parsed exactly), object caches (protobuf; 409 k cell objects), `prefabs.db` layout, biome map layout. Tree/child order and density encoding VERIFIED 2026-11-22 (§4). Protobuf transform fields VERIFIED 2026-11-26 (`research/sn1/objects.md`). Open: type to material table. See `research/sn1/README.md`.

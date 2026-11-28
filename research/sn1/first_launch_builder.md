@@ -1,8 +1,8 @@
 # SN1 open questions and the first-launch builder
 
-Sources: 10_sn1_world_data.md "8. Open questions for SN2 (UNTESTED)", 10_sn1_world_data.md "10. First-launch builder (design, 2026-11-19, UNTESTED unles" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Open/design content (UNTESTED unless marked), kept in full in pass 2 (2026-11-28); sections keep their old numbers 8 and 10 because other notes cite them.
 
-## 8. Open questions for SN2 (UNTESTED)
+## 8. Open questions for SN2 (UNTESTED) — OPEN (2026-11-19)
 - **Ocean depth.** `BP_Ocean_C.BodySize` Z = 1 km (`research/sn2/world_systems.md`), but SN1 goes down to about −1.9 km. Check whether swim physics, pressure and fog work below 1 km, or whether `BodySize` can be raised.
   Note: L_SN2World currently has no water physics outside the pod (FAIL, `research/status.md` / `research/sn2/README.md`).
 - **Map footprint.** SN1 is 4.1 × 4.1 km. It fits inside the 10 × 10 km ocean body; the edge-of-world ring (`BP_EdgeOfWorldVolume_C`) needs to move to the SN1 void edge.
@@ -77,7 +77,7 @@ Only native code can read the cache.
   us plus UAssetAPI/retoc-style serialisation, so SN2 streams them like any asset. This is hard and tied to the exact engine version. Research it only
   if the runtime path hits a wall.
 
-### First experiments (cheap, in order)
+### First experiments (cheap, in order) — OPEN (2026-11-19)
 1. Prove runtime `UStaticMesh::BuildFromStaticMeshDescriptions` from a minimal UE4SS C++ mod: one mesh, visible, with collision.
 2. Prototype the builder in Python on one batch (12-18-12) to settle the octree decode (§4 open points), then port the hot loop to native code.
 3. Time and measure memory for one batch in native code, then extrapolate to all 5,416.

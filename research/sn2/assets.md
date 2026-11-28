@@ -1,6 +1,6 @@
 # SN2 asset index
 
-Sources: 06_asset_index.md "Asset index — where things live in the game content" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Full pass-1 notes: `git show 3449200:research/sn2/assets.md`.
 
 ## Asset index — where things live in the game content
 

@@ -1,8 +1,8 @@
 # SN1 asset extraction
 
-Sources: 12_sn1_assets.md "12 — SN1 prefab assets: bundles, prefabs, mesh/texture extra" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass 2 (2026-11-28): empty section 7 "Results" removed (full notes: `git show 3449200:research/sn1/assets.md`).
 
-## 12 — SN1 prefab assets: bundles, prefabs, mesh/texture extraction
+## SN1 prefab assets: bundles, prefabs, mesh/texture extraction
 
 How the render data of Subnautica 1 (SN1) decoration prefabs (plants, corals, rock doodads, resource outcrops) is extracted offline from the user's own install, and in what form.
 Investigation 2026-11-26. Everything here was read offline (no game, no heavy lock). Tool: `src/tools/sn1_extract_prefabs.py`. Outputs go to `<Workspace>/sn1_assets/` only.
@@ -10,9 +10,9 @@ Legal: same model as the terrain (`research/sn1/legal.md` §9): the converter ru
 Placement data (CellsCache transforms, ClassIds) is a separate topic: `research/sn1/objects.md` §5 and `src/tools/sn1_objects.py`.
 
 ### 1. Tooling
-- UnityPy **1.25.4** (`pip install --user UnityPy`, approved 2026-11-26) pulled in: `archspec 0.2.8`, `astc-encoder-py 0.1.12`, `brotli 1.2.1`, `etcpak 0.9.15`, `fmod_toolkit 0.1.3`, `lz4 4.4.5`, `pyfmodex 0.7.2`, `texture2ddecoder 1.0.6`, `tpk_ar 0.2.4` (the last built from source, no compiler needed). numpy 2.5.4 and Pillow 10.2.0 were already installed. **VERIFIED (2026-11-26, pip output)**
+- UnityPy **1.25.4** (`pip install --user UnityPy`, approved 2026-11-26) pulled in `archspec`, `astc-encoder-py`, `brotli`, `etcpak`, `fmod_toolkit`, `lz4`, `pyfmodex`, `texture2ddecoder 1.0.6`, `tpk_ar 0.2.4` (built from source, no compiler needed); numpy 2.5.4 and Pillow 10.2.0 were already installed. **VERIFIED (2026-11-26, pip output)**
 - **`python -I` ignores the user site-packages**, so a plain `python -I script.py` cannot import UnityPy. The script appends `site.getusersitepackages()` to `sys.path` itself (appended last, so the script directory is still not importable). **VERIFIED (2026-11-26)**
-- `ilspycmd` (see `research/sn1/README.md`) was used once to read the field layout of `PrefabPlaceholder`, `PrefabPlaceholdersGroup`, `LargeWorldEntity` (output `<Workspace>/sn1_decompiled/assets_types/*.cs`, outside the repo).
+- `ilspycmd`  was used once to read the field layout of `PrefabPlaceholder`, `PrefabPlaceholdersGroup`, `LargeWorldEntity` (output `<Workspace>/sn1_decompiled/assets_types/*.cs`, outside the repo).
 
 ### 2. Resolving a prefab to bundles (Addressables catalog) — VERIFIED (2026-11-26)
 `<SN1Dir>\Subnautica_Data\StreamingAssets\aa\catalog.json` is an Addressables `ContentCatalogData` with base64 binary tables. Decoder = class `Catalog` in the tool (0.1 s to load).
@@ -40,7 +40,7 @@ m_InternalIds / m_ProviderIds / m_resourceTypes : plain JSON arrays
 
 ### 4. Materials and shaders — VERIFIED (2026-11-26, material properties read from the bundles)
 Material typetree: `m_Shader` PPtr -> `Shader.m_ParsedForm.m_Name`; `m_ShaderKeywords` (space separated); `m_CustomRenderQueue`; `stringTagMap` (`RenderType`); `m_SavedProperties.m_TexEnvs / m_Floats / m_Colors`.
-Shaders seen in the exported set (213 prefabs): `MarmosetUBER` (178; keywords `MARMO_SPECMAP`, `MARMO_EMISSION`, `UWE_WAVING`, `_ZWRITE_ON`), `UWE/SIG Triplanar with Capping` (7: rock/coral clumps), `UWE/SIG` (2), `UWE/SIG Terrain Grass` (1), `UWE/SIG AlphaCutout + Noisey Wave` (1). The full-database shader table is in §7.
+Shaders seen in the exported set (213 prefabs): `MarmosetUBER` (178; keywords `MARMO_SPECMAP`, `MARMO_EMISSION`, `UWE_WAVING`, `_ZWRITE_ON`), `UWE/SIG Triplanar with Capping` (7: rock/coral clumps), `UWE/SIG` (2), `UWE/SIG Terrain Grass` (1), `UWE/SIG AlphaCutout + Noisey Wave` (1). 
 - **MarmosetUBER** texture slots: `_MainTex` (albedo; DXT1/DXT5), `_BumpMap` (normal), `_SpecTex` (spec colour, gloss in alpha for DXT5), `_Illum` (emission). Floats worth keeping: `_Mode`, `_Cutoff`/`_EnableCutOff`, `_MyCullVariable` (UnityEngine CullMode: 0 two-sided, 2 back), `_Shininess`, `_SpecInt`, `_Fresnel`, `_EmissionLM`, `_EnableGlow`, `_GlowStrength`, `_EnableVertexColor`; colours `_Color`, `_SpecColor`, `_GlowColor`; wave/sway: keyword `UWE_WAVING` plus `_Frequency`, `_Scale`, `_Speed`, `_ObjectUp`, `_WaveUpMin`, `_minYpos`, `_maxYpos`. The material carries ~80 more floats and ~30 colours (all copied into the manifest) of which almost all are defaults.
 - **UWE/SIG Triplanar with Capping** (rocks `Rock_pillar01`, `Coral_Clump*`): textures are projected from the world position, not from UV0: `_SideTexture`/`_SideBumpMap`/`_SideSIGMap` and `_CapTexture`/`_CapBumpMap`/`_CapSIGMap` (cap = faces pointing up). Vertex colours are present on some of them (`Coral_Clump01a` yes, `Rock_pillar01` no); their role is UNTESTED. **A UE material with world-aligned (triplanar) projection and an up-facing blend is needed for these.**
 - **UWE/SIG family**: `_SIGMap` = a packed Spec/Illum/Gloss texture (channel meaning is a guess from the pixel statistics: R varies, G = 0, B constant; UNTESTED). `UWE/SIG Terrain Grass` (grass cards): `_MainTex` DXT5 with alpha (cutout), `_BumpMap`, `_Mask`, `_SIGMap`, two-sided. `UWE/SIG AlphaCutout + Noisey Wave`: cutout + vertex sway (red seaweed).
@@ -55,7 +55,7 @@ Shaders seen in the exported set (213 prefabs): `MarmosetUBER` (178; keywords `M
 **One baked mesh per prefab, parts merged, material sections, in UE axes/cm, root TRS excluded; the manifest keeps the part list.**
 Why baked (not one file per renderer): the SN2 side wants one static mesh per prefab with N material slots, used as an HISM/instanced mesh (22,290 instances of one connector prefab in the census); parts of a prefab are always placed together. The per-part transforms stay in `prefab.json` for anyone who wants separate pieces.
 - Axes: `UE.X = 100*u.z, UE.Y = 100*u.x, UE.Z = 100*u.y` (cyclic, handedness kept). Normals use the inverse-transpose of the part matrix, permuted the same way.
-- **Winding:** the triangle index order is the Unity order and is NOT changed. Check (VERIFIED 2026-11-26 on 213 prefabs): numeric `(b-a) x (c-a)` in UE axes agrees with the vertex normals for 100 % of triangles on solid meshes (0.96 to 0.99 on creatures, 0.5 on the one-sided-normal grass cards). So the numeric normal points outward exactly like the terrain OBJ, and **the importer must emit `a,d,b` like `sn1terrain_import.py`** (`research/terrain/legacy_lua.md` §3). Mirrored parts (negative determinant) get b/c swapped at export so this stays true.
+- **Winding:** the triangle index order is the Unity order and is NOT changed. Check (VERIFIED 2026-11-26 on 213 prefabs): numeric `(b-a) x (c-a)` in UE axes agrees with the vertex normals for 100 % of triangles on solid meshes (0.96 to 0.99 on creatures, 0.5 on the one-sided-normal grass cards). So the numeric normal points outward exactly like the terrain OBJ, and **the importer must emit `a,d,b` like `sn1terrain_import.py`** (`research/terrain/legacy_lua.md` section 3). Mirrored parts (negative determinant) get b/c swapped at export so this stays true.
 - UV: `u` unchanged, `v = 1 - v_unity`; the PNGs are top-origin. UV1 and vertex colours are exported when present.
 - `mesh.json` (primary; load with `json`):
 ```json
@@ -71,10 +71,7 @@ Why baked (not one file per renderer): the SN2 side wants one static mesh per pr
 - **Skinned meshes:** with 0 bones (jeweled disks, creatures in the cache) the mesh is exported rigid with the renderer's transform. With bones the code skins the vertices into the rest pose (`sum w_i * bone_i_to_root * bindpose_i * v`); this path is UNTESTED (no decoration prefab with bones was in the test set).
 - Preview: `<out>/<prefab>/preview.png` is a numpy z-buffer render of top/front/side/iso with the `_MainTex` applied (not for triplanar materials, which have none).
 
-### 7. Results
-(see below, filled in from the runs)
-
 ### Dead ends
 - **FAILED (2026-11-26):** loading every bundle of the catalog dependency list per prefab (76 bundles, 128 MB for limestone) works but wastes RAM over a whole-database run; replaced by lazy loading.
 - **FAILED (2026-11-26):** `MonoBehaviour.read()` / `read_typetree()` raises `ValueError: Expected to read 72 bytes, but only read 32 bytes` (no script TypeTree in the bundle). Use `read_typetree(check_read=False)` and raw bytes.
-- **FAILED (2026-11-26):** first normal-map detection used the Unity format as an integer string ("12") instead of its name, so DXT5nm maps were exported un-decoded (R = 1 everywhere). Fixed by `UnityPy.enums.TextureFormat(int).name`; `_CapBumpMap/_SideBumpMap` were also missed because only `_BumpMap` was matched.
+- **FAILED (2026-11-26):** normal-map detection compared the integer format ("12") instead of `UnityPy.enums.TextureFormat(int).name`, so DXT5nm maps were exported un-decoded (R = 1); `_CapBumpMap/_SideBumpMap` were missed (only `_BumpMap` matched). Fixed.

@@ -1,6 +1,6 @@
 # SN2 console commands
 
-Sources: 05_console_commands.md "Console commands" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Full pass-1 notes: `git show 3449200:research/sn2/console.md`.
 
 ## Console commands
 

@@ -48,6 +48,33 @@ Never upgrade a claim's status without new evidence. (A claim was once marked VE
 
 - One topic per file; soft limit 15 KB, hard limit 25 KB. A new topic is a new file plus one line in its folder README.
 - Link format: `research/<folder>/<file>.md` with an optional section number or quoted heading; markdown links inside a folder README.
-- No images in `research/`: describe screenshots in text.
+- Images are allowed: put them in an `img/` folder next to the note (`research/<folder>/img/<name>.png`), link them with a relative markdown link, and still say in text what the image shows (status word + date), because agents search the notes as text.
 - Every claim carries a status word and a date (see the legend above).
-- Run `python src/tools/research_lint.py` after editing notes.
+- Run `python -I src/tools/research_lint.py` after editing notes. A Claude Code hook (`.claude/settings.json`, `src/tools/research_lint_hook.py`)
+  also runs it after every Write/Edit under `research/` and reports errors in the edited file back to the agent.
+
+## Open topics
+
+- A topic with work left ends its heading with ` — OPEN (YYYY-MM-DD)`: em dash, then the date the topic was opened (the earliest date in its notes).
+  Example: `## Pod re-attach in game — OPEN (2026-11-19)`. Work left = an unfixed bug, an UNTESTED plan still intended, PAUSED work
+  (the text says PAUSED), or an open question someone means to answer.
+- Tag the smallest heading that covers the open work, not the whole file.
+- Every OPEN heading has exactly one line in `research/status.md` "Next steps":
+  `N. <status word + date + what is left> — `research/<folder>/<file>.md` "<heading text without the tag>"`.
+  Every Next steps line points at an OPEN heading. The lint checks both directions.
+- Closing a topic: remove the tag, condense the section ("Condense once solved" in CLAUDE.md), delete its status.md line.
+- `grep -rn "OPEN (" research/` lists everything open.- Open investigations big enough for their own files use a summary `<problem>.md` (current state, links) plus phase notes
+  `<problem>_<phase>_<date>.md`, as `research/crashes/gc_watchdog.md` does.
+
+## Splitting a file
+
+When a note passes 15 KB:
+1. Condense first: apply "Condense once solved" to anything solved.
+2. Still over? Split by topic along existing `##` sections: each new file is one topic a task would open on its own.
+   Never split by size or date, and never create `_part2` files.
+3. Name the new file after its subject: `<area>_<topic>.md`, lowercase snake_case (e.g. `l_sn2world_water.md`).
+4. Exception: open-investigation notes may be split by phase (`<problem>_<phase>_<date>.md`), with the `<problem>.md` summary listing them.
+5. The original file keeps its name and its main topic, and gets a one-line "See also" pointing at the new files, so existing links still resolve.
+6. Move sections intact with unchanged headings. Grep the repo for links to each moved heading and re-point them. Add the new file to the
+   folder README with a one-line hook.
+7. Finish with the lint at 0 errors. Nothing goes over 25 KB unless it is in the lint's `EXEMPT` list with a reason (open-investigation notes only).

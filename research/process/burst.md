@@ -1,6 +1,6 @@
 # Burst comparison
 
-Sources: 01_runbook.md "Burst comparison: time-varying effects, mod vs stock (built" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass-1 text: `git show 3449200:research/process/burst.md`.
 
 ## Burst comparison: time-varying effects, mod vs stock (built 2026-11-28, UNTESTED in game)
 - `bash src/tools/burst.sh [--only mod|stock] [--offset X,Y,Z] [--views NAME:YAW:PITCH,...] [--frames 8] [--span 1.0]` (run_in_background; ~2 game runs). For effects that change over time (caustics); a single shot cannot show them.

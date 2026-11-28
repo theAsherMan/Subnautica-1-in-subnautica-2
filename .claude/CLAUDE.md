@@ -1,9 +1,10 @@
 # Additional project rules
 
-## Research notes: no images
-Never add images to the `research/` notes: no markdown image links, no copied screenshot files, no `<img>`.
-When the tester sends a screenshot, describe in text what it shows (objects visible, map/location, HUD values, anything unexpected),
-with the usual status word and date (e.g. **VERIFIED (2026-11-18, tester screenshot)**). Include this rule in briefs for any agent that edits `research/`.
+## Research notes: images
+Images are allowed in `research/` (rule changed by the user 2026-11-28). Put them in an `img/` folder next to the note
+(`research/<folder>/img/<name>.png`) and link them with a relative markdown link. Still say in text what an image shows (objects visible,
+map/location, HUD values, anything unexpected) with the usual status word and date, e.g. **VERIFIED (2026-11-18, tester screenshot)**,
+because agents search the notes as text.
 
 ## Work autonomously
 The main agent works largely on its own: carry the given task through to the end (diagnose, fix, test runs, follow-up steps) without asking

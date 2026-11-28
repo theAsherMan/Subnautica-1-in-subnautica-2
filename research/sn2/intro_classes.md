@@ -1,6 +1,6 @@
 # SN2 intro and adaptation classes
 
-Sources: 09_intro_and_world_replacement.md "Relevant classes (Headers.hpp line numbers, build CL-131439)", 09_intro_and_world_replacement.md "Adaptations API (Headers.hpp 115403, 121419; GameplayTags.tx", 09_intro_and_world_replacement.md "BP_LifepodManager_C reference (dump 2026-11-16 21:17; `UFunc" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Full pass-1 notes: `git show 3449200:research/sn2/intro_classes.md`.
 
 ## Relevant classes (Headers.hpp line numbers, build CL-131439)
 - `ASN2LifepodManager : AActor` (Headers.hpp 117980): `HideHud()`, `ShowHUD()`, `LogLifepod(FString, bool IsError)`.

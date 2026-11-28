@@ -1,6 +1,6 @@
 # SN1 legal position
 
-Sources: 10_sn1_world_data.md "9. Legal position on shipping SN1-derived data (web check 20" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Position paper (web check 2026-11-19), kept in full in pass 2 (2026-11-28); section keeps its old number 9 because other notes cite it.
 
 ## 9. Legal position on shipping SN1-derived data (web check 2026-11-19; not legal advice)
 Question: may the mod download contain pre-built assets made from SN1 data (terrain meshes, object placements, models)? This is "option 3".

@@ -1,8 +1,8 @@
 # SN2AutoTest and SN2Census code
 
-Sources: 07_mods_reference.md "SN2Census (new 2026-11-18, ~215 lines, read-only) â€” measur", 07_mods_reference.md "SN2AutoTest + automated test tools (2026-11-18)", 07_mods_reference.md "SN2AutoTest engine input mode (2026-11-22)" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass 2 (2026-11-28): deleted-mod narrative removed, mojibake fixed (full notes: `git show 3449200:research/code/autotest_mod.md`).
 
-## SN2Census (new 2026-11-18, ~215 lines, read-only) â€” measurement for the SN2EmptyWorld test
+## SN2Census (2026-11-18, ~215 lines, read-only): measurement for the SN2EmptyWorld test
 Never destroys/hides anything; only F1-F3 teleport (`pawn:K2_SetActorLocation({X,Y,Z}, false, {}, true)`). Log prefix `[SN2Census]`. Status: UNTESTED in game.
 Sections: guarded helpers (`isValid` pcall, `findAll` skips `Default__`) -> `cvar(name)` (`Default__KismetSystemLibrary:GetConsoleVariableIntValue`) -> `findModActor` (FindAllOf `ModActor_C`
 whose class full name contains `/Game/Mods/SN2EmptyWorld/`; reads its int vars) -> `sample()` -> `writeReport` -> scheduling (`scheduleAt`: chained `ExecuteWithDelay`, no LoopAsync, nothing runs in the lobby)
@@ -12,7 +12,7 @@ Sample line (one per sample):
 (-999 = read failed; mod fields -1 = ModActor not found). Report `census_<stamp>.txt` in the mod folder (written at t=15 s and on every F5): sample line, actor class histogram,
 remaining `_UAID_` actors as `<full name> | <class> | loc=(x,y,z) | rot=(pitch,yaw,roll) | scale=(x,y,z)`, a PlayerStart section (same fields + `tag=` PlayerStartTag), `_Generated_` Level names, ModActor `DestroyedClassNames` (TArray `:ForEach`, pcall-wrapped).
 
-SN2WorldLevel (2026-11-18, ~55 lines, DISABLED after the tests): F8 = `UWELobbyStatics:SetWorldLevel` to the SupplyCrates dev map, F9 = restore; `GetWorldLevelName` returns `/Game/Maps/Main/L_Main` style. SN2Census arms in any world except `L_ClientLobby` and prefixes samples with `world=<name> worldLevel=<GetWorldLevelName>`; report also lists lifepod/water/sky/manager actors with transform + attach parent.
+SN2Census arms in any world except `L_ClientLobby` and prefixes samples with `world=<name> worldLevel=<GetWorldLevelName>` (`GetWorldLevelName` returns `/Game/Maps/Main/L_Main` style); the report also lists lifepod/water/sky/manager actors with transform + attach parent. (SN2WorldLevel, F8/F9 `UWELobbyStatics:SetWorldLevel`, was deleted 2026-11-23: `git show 40820f3:src/mods/SN2WorldLevel/Scripts/main.lua`.)
 
 ## SN2AutoTest + automated test tools (2026-11-18)
 - `src/mods/SN2AutoTest/Scripts/main.lua` (~180 lines, **observe-only**): arming (`run/active_plan.lua` -> dofile -> rename `.consumed`); `ClientRestart` hook logs `[SN2AutoTest] WORLD <short name>`; in non-lobby worlds polls (1 s `ExecuteWithDelay`) for `PAWN possessed spawn=(..)` and logs `SETTLED spawn` 12 s later (the "spawn" waypoint uses the settled position); `SetWorldLevel` 2 s after `WORLD L_ClientLobby` when the plan has `worldLevel` (the only non-observing call); hotkeys `Ctrl+Shift+Z/X/C/V/B` = teleport to plan waypoint 1..5 (`K2_SetActorLocation` sweep false, teleport true; lifepod + offset, or the settled spawn); `Ctrl+F11` = `STATE world= pawn=(..) cam=(..) yaw= pitch= lifepod=(..)`. Never calls StartNewLocalGame*, LoadLocalGame, SetControlRotation, QuitGame or console commands.
@@ -34,4 +34,4 @@ SN2WorldLevel (2026-11-18, ~55 lines, DISABLED after the tests): F8 = `UWELobbyS
 
 ### Startup speed-up changes (2026-11-22)
 - `src/tools/autotest_driver.py`: `say()` timestamps; engine mode skips the frame-diff gate; `get_state` uses the Lua `state` verb; `do_steps_engine` polls the next button (0.25 s idle, re-click 1.5 s, cap 10); pawn readiness poll (min `settleMin` 2 s, max `settleSeconds`); `wait_frames(nfr, pawn_still, label)` polls the Lua `frame` verb and logs a free FPS figure when `label` is given; `turn_to` skips the initial state read in engine mode; `fps_probe` kept only at `menu_ready`.
-- `src/mods/SN2AutoTest/Scripts/main.lua`: command-file poll `LoopAsync(100, ...)` (was 250). Phase table and verdicts: `research/process/autotest_startup.md` "Startup speed-up, phase table".
+- `src/mods/SN2AutoTest/Scripts/main.lua`: command-file poll `LoopAsync(100, ...)` (was 250). Phase table and verdicts: `research/process/autotest_startup.md` "Startup speed-up (2026-11-22; ...".

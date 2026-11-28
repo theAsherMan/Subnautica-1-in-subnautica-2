@@ -61,7 +61,7 @@ Tool: `src/tools/samples.py` (`list`, `plan`, `import`, `analyze`; run `python -
    read the previous `analysis.md` (or `git show HEAD:samples/<biome>/<shot>/analysis.md`) and say what got better or worse.
 7. Get the water settings at each view from the run's `UE4SS.log`: lines `ENVPROBE <shot> ...` (which biome regions exist and their
    `WaterLightSettings`). Add anything relevant to the analysis.
-8. Record the result in `research/` in the same turn, as text only. Never put images or image links in `research/`. Describe what the
+8. Record the result in `research/` in the same turn. Images may be added under `research/<folder>/img/`, but always describe in text what the
    shots show, with the status word and date, e.g. **VERIFIED (2026-11-26, samples run `<Workspace>/autotest/<ts>_samples`)**. The water
    look goes in `research/features/biome_look.md` §6. Update the "State of play" row in `research/status.md` if the result changed.
 9. Report to the user: one line per shot with the verdict, what changed since the last analysis, and the run id. Commit only if asked.

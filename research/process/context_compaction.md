@@ -1,6 +1,6 @@
 # Context compaction of the main agent (Claude Code mod)
 
-Sources: 01_runbook.md "Context compaction of the main agent (Claude Code mod, built" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass-1 text: `git show 3449200:research/process/context_compaction.md`.
 
 ## Context compaction of the main agent (Claude Code mod, built 2026-11-28)
 Mod `context-compactor` in `.claude/mods/context-compactor/` (hooks module `hooks/register.ts`), enabled for this project in `.claude/settings.json`

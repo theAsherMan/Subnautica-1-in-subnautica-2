@@ -1,6 +1,6 @@
 # Placing features: props, spawns, climate, music, lights, scale
 
-Sources: 04_placing_features.md "Placing features", 04_placing_features.md "Rocks, props, structures — VERIFIED 2026-11-14", 04_placing_features.md "Creature spawns", 04_placing_features.md "Hot / cold area", 04_placing_features.md "Music and ambience", 04_placing_features.md "Lights", 04_placing_features.md "Scale reference", 00_overview.md "State of play" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Full pass-1 notes: `git show 3449200:research/features/placement.md`. Temperature / water-look / music / spawn-zone actors spawned from Lua: UNTESTED (properties known), no run planned yet.
 
 ## Placing features
 
@@ -40,9 +40,3 @@ Standard `PointLight`/`SpotLight` actors spawn fine (53/11 loaded in the area); 
 
 ## Scale reference
 Player stood at z = −240 m; Coral Gardens landscape tiles 252 m; spawn zone boxes 100 × 200 × 120 m; temperature radius 15 m; fog sphere blend 5 m; ocean body 10 km square.
-
-## State of play detail (moved from 00_overview.md, 2026-11-28)
-
-| Capability | Status |
-|---|---|
-| Temperature / water-look / music / spawn-zone actors spawned from Lua | UNTESTED (properties known) |

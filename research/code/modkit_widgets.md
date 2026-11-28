@@ -1,6 +1,6 @@
 # SN2GraphTools widget functions
 
-Sources: 08_modkit_setup.md "SN2GraphTools widget functions + WBP_BugReport script (2026-" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass 2 (2026-11-28): kept as is, Sources line dropped (full notes: `git show 3449200:research/code/modkit_widgets.md`).
 
 ## SN2GraphTools widget functions + WBP_BugReport script (2026-11-24)
 - Plugin deps now include UMG, UMGEditor, Slate, SlateCore (Build.cs). Rebuild with the editor closed: **VERIFIED (2026-11-24)** build Succeeded in 352 s (`-MaxParallelActions=4`, 7 actions, wrapper `<ModkitDir>/build_bugshot.cmd`, log `build_bugshot.log`).

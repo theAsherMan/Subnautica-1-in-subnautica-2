@@ -1,6 +1,6 @@
 # Offline tools
 
-Sources: 01_runbook.md "Offline tools (in `tools\bin\`, SHA-256 verified at download" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass-1 text: `git show 3449200:research/process/offline_tools.md`.
 
 ## Offline tools (in `tools\bin\`, SHA-256 verified at download; never run yet)
 - `repak.exe` v0.2.3 — unpack legacy pak: `repak unpack <pak> -o <dir>` (the `.ini` configs live in `Subnautica2-Windows.pak`).

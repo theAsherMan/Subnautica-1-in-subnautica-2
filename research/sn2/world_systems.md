@@ -1,6 +1,6 @@
 # SN2 world systems reference
 
-Sources: 02_world_systems_reference.md "World-system reference (class and property names)" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Full pass-1 notes: `git show 3449200:research/sn2/world_systems.md`.
 
 ## World-system reference (class and property names)
 

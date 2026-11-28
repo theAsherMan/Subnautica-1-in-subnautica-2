@@ -86,7 +86,7 @@ Your context auto-compacts at 150k tokens (`autoCompactWindow` in the frontmatte
   - **UNTESTED**.
   - **FAILED (date)**, with the reason.
 - Never mark something VERIFIED on log output alone.
-- **No images in `research/`:** no markdown image links, no copied screenshot files, no `<img>`. Describe screenshots in text instead: objects visible, location, HUD values, anything unexpected. Cite the file, e.g. **VERIFIED (2026-11-19, autotest screenshot `<run>/shots/<file>`)**.
+- **Images in `research/`** are allowed: put them in `research/<folder>/img/` and link them relatively. Still describe in text what each screenshot shows (objects visible, location, HUD values, anything unexpected) and cite the file, e.g. **VERIFIED (2026-11-19, autotest screenshot `<run>/shots/<file>`)**.
 
 ## Report back
 Before you send the final report, stop every background task and Monitor you started (TaskStop), so that nothing is left running. Each one that ends later wakes you up again and re-sends the same report. On 2026-11-23 an implementer sent one report four times this way. Send the report once, as the very last thing you do.

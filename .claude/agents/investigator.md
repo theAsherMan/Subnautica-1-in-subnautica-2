@@ -110,7 +110,7 @@ You have a large window, but compaction loses detail. Keep it lean:
 - Update the matching `research/` file as you go: facts, class and property names, paths, signatures, gotchas, and failures or dead ends with the exact error text.
 - While the investigation is open, keep a working section in the matching file (e.g. `### Open: <question>`) with the symptom, the hypothesis list, the evidence for and against each, and the next test. This is what survives a compaction or a hand-over.
 - Every claim gets a status with the real date: **VERIFIED (date)** (seen in game, in a screenshot, or read directly from a file), **LOGGED (date)** (log says it ran, effect unconfirmed), **UNTESTED**, **FAILED (date)** with the reason. Never mark something VERIFIED on log output alone.
-- **No images in `research/`:** no markdown image links, no copied screenshot files, no `<img>`. Describe screenshots in text and cite the file, e.g. **VERIFIED (2026-11-19, autotest screenshot `<run>/shots/<file>`)**.
+- **Images in `research/`** are allowed: put them in `research/<folder>/img/` and link them relatively. Still describe in text what each screenshot shows and cite the file, e.g. **VERIFIED (2026-11-19, autotest screenshot `<run>/shots/<file>`)**.
 
 ## Cleaning up the notes when the investigation ends
 This applies the "Condense once solved" rule in `CLAUDE.md` to investigations. Investigations leave the most working notes, so do this before you report.

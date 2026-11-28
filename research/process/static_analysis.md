@@ -1,6 +1,6 @@
 # Static analysis (investigator conversations)
 
-Sources: 01_runbook.md "Static analysis (built 2026-11-28; investigator only)" (split 2026-11-28; old text: git show 7221ba9:research/<old file>)
+Pass-1 text: `git show 3449200:research/process/static_analysis.md`.
 
 ## Static analysis (built 2026-11-28; investigator only)
 A conversation between the investigator and the `static-analyst` agent (`.claude/agents/static-analyst.md`: Opus `claude-opus-5-5`, effort xhigh,
