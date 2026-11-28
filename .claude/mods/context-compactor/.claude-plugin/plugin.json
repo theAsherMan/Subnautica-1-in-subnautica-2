@@ -1,0 +1,5 @@
+{
+  "name": "context-compactor",
+  "version": "0.1.0",
+  "description": "Main agent compacts at 200k tokens mid-turn, and at turn end when over 150k tokens."
+}

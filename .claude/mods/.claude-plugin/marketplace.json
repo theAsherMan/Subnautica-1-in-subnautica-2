@@ -1,0 +1,5 @@
+{
+  "name": "sn2-mods",
+  "owner": { "name": "sn2 project" },
+  "plugins": [{ "name": "context-compactor", "source": "./context-compactor" }]
+}
