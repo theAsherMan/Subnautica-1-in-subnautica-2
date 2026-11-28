@@ -113,12 +113,12 @@ MSYS_NO_PATHCONV=1 schtasks /query /tn SN2_FlushStandby >/dev/null 2>&1 || { ech
 if [ "$DRY" != 1 ]; then
   bash "$HL" acquire gc_ab --wait 0 --note "gc_ab_test $RUNS runs" || { echo "heavy lock not acquired - abort"; DONE_CLEAN=1; exit 4; }
   HL_TAKEN=1
-  # the lock counts as free after SN2_LOCK_IDLE s (60) without a heavy process: refresh it while the game is down between runs
-  ( while true; do sleep 20; bash "$HL" acquire gc_ab --wait 0 >/dev/null 2>&1; done ) & KA=$!
+  # the lock counts as free after SN2_LOCK_IDLE s (10) without a heavy process: refresh it while the game is down between runs
+  ( while true; do sleep 4; bash "$HL" acquire gc_ab --wait 0 >/dev/null 2>&1; done ) & KA=$!
   bash "$TOOLS/backup_saves.sh" || echo "WARNING: save backup failed"
   mkdir -p "$REPORTS"
 else
-  say "[dry-run] heavy_lock acquire gc_ab --wait 0 ; keep-alive refresh every 20 s ; backup_saves.sh"
+  say "[dry-run] heavy_lock acquire gc_ab --wait 0 ; keep-alive refresh every 4 s ; backup_saves.sh"
 fi
 printf '#run\tarm\tverdict\trun_folder\tflush_ok\tflush_s\tboot_to_lobby_s\tlobby_to_world_s\tpurge_s\tresult\tgc_queue\trun_time_s\tforced_kill\n' > "$([ "$DRY" = 1 ] && echo /dev/null || echo "$TSV")"
 

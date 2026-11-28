@@ -9,7 +9,9 @@ set -euo pipefail
 MOD="${1:?mod name}"; CHUNK="${2:?chunk id}"
 # RAM: hold the heavy lock (src/tools/heavy_lock.sh) for the whole run; waits up to SN2_LOCK_WAIT s (default 3600). Released at exit only if taken here.
 HL="$SN2_REPO/src/tools/heavy_lock.sh"
-if ! bash "$HL" check; then
+if bash "$HL" check; then
+  bash "$HL" acquire cook >/dev/null   # already ours: refresh the idle timer so the gap before UAT starts cannot look idle
+else
   bash "$HL" acquire cook --wait "${SN2_LOCK_WAIT:-3600}" --note "cook_install $MOD" || { echo "heavy lock not acquired - abort"; exit 4; }
   trap 'bash "$HL" release >/dev/null' EXIT
 fi

@@ -478,7 +478,7 @@ def send_cmd(verb, args="", timeout=20):
     path = os.path.join(run_dir(), "cmd.txt"); tmp = path + ".tmp"
     with open(tmp, "w") as f:
         f.write("%d %s %s%s" % (seq, verb, args, chr(10)))
-    for _ in range(40):
+    for _ in range(400):   # 20 s (was 2 s): the Lua poll holds cmd.txt open while the game thread stalls (run 20261127_170011: FAIL_EXCEPTION at menu_ready)
         try:
             os.replace(tmp, path); break
         except PermissionError:
@@ -817,6 +817,11 @@ def run_plan(plan_path):
         while True:
             k, b = pick(todo, visible_buttons(), last_k)
             if k is None:
+                # a step may name an alternative end ("alt_done_log"): the world loaded without the optional screens that follow (e.g. no
+                # character select with -OverridePlayerStart) -> the chain is finished
+                if last_k >= 0 and todo[last_k].get("alt_done_log") and re.search(todo[last_k]["alt_done_log"], log_since(mark)):
+                    say("  step %s: alternative end condition met (optional following screens not shown)" % todo[last_k]["screen"])
+                    return
                 if time.time() - t_known > idle_limit:
                     raise MenuFail(todo[max(last_k, 0)]["screen"], "no known menu screen for %d s (after step %d/%d)" % (idle_limit, last_k + 1, len(todo)), kind)
                 time.sleep(0.25); continue
@@ -987,7 +992,7 @@ def run_plan(plan_path):
             if not wait_log(r"\[SN2AutoTest\] CENSUS DONE lobby", off, _lc + 90):
                 say("WARNING 'CENSUS DONE lobby' not seen in time; clicking on")
         mark = log_size()
-        do_steps(menus["load_game" if plan.get("start") == "load" else "new_game"])
+        do_steps(menus["load_game" if plan.get("start") == "load" else ("new_game_pioneer" if plan.get("pioneer") else "new_game")])
         # world
         if not wait_log(r"\[SN2AutoTest\] PAWN possessed", mark, 240):
             time.sleep(0.1)
@@ -1276,6 +1281,8 @@ def run_plan(plan_path):
                     f.write("%d\t%s\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%s\n" % (wi, wp["name"], 0, st["yaw"], *st["pawn"], *st["cam"], int(time.time()), fn))
                 n += 1
                 print("[driver] SHOT %s yaw=%.1f pitch=%.1f pawn=%s" % (fn, st["yaw"], st["pitch"], st["pawn"]), flush=True)
+                # 2026-11-26: terrain check right after the shot (not before, so the shot timing stays envprobe + cmdWait); log SN1PROBE <name>_<probeAfter>_after
+                if ENG and wp.get("probeAfter"): send_cmd("sn1probe", "%s_%s_after" % (wp["name"], wp["probeAfter"]), 30)
                 return
             if views in ("abs8ud", "down45"):
                 o2()

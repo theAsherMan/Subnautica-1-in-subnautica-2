@@ -44,6 +44,57 @@
    "done_log": "WORLD (?!L_ClientLobby)\\w+|PAWN possessed"
   }
  ],
+ "new_game_pioneer": [
+  {
+   "_comment": "2026-11-27: the stock L_Main new game shows WBP_CharacterSelectScreen_C after the world load (L_SN2World skips it). Used only by plans with \"pioneer\": true. The first four steps equal new_game; StartButton has no end condition (the pioneer screen is the next live screen; retry_after 120 s so the click is not repeated during the map load); the pioneer button is skippable; Play (named Confirm) is disabled until a pioneer is selected, hence needs_enabled.",
+   "screen": "notice_photosensitivity_continue",
+   "expect": "notice",
+   "x": 960,
+   "y": 930,
+   "engine": {"label": "name:ContinueBtn@WBP_StartScreen_HealthWarning", "method": "fn:HandleButtonClicked", "settle": 4}, "skippable": true
+  },
+  {
+   "screen": "title_continue",
+   "expect": "title",
+   "x": 960,
+   "y": 930,
+   "engine": {"label": "name:ContinueBtn@WBP_StartScreen_PressStart", "method": "fn:HandleButtonClicked", "settle": 4}, "skippable": true
+  },
+  {
+   "screen": "main_play_single_player",
+   "expect": "main_menu",
+   "x": 775,
+   "y": 461,
+   "engine": {"label": "name:PlaySinglePlayerButton@WBP_MainLobbyScreen", "method": "fn:HandleButtonClicked", "settle": 4}
+  },
+  {
+   "screen": "saves_new_single_player_game",
+   "expect": "save_list",
+   "x": 1198,
+   "y": 407,
+   "engine": {"label": "name:WBP_NewGameButton@WBP_LoadGamePanel", "method": "fn:HandleButtonClicked", "settle": 4}
+  },
+  {
+   "screen": "create_new_game_survival_play",
+   "expect": "create_game",
+   "x": 947,
+   "y": 815,
+   "engine": {"label": "name:StartButton@WBP_CreateGameScreen", "method": "fn:HandleButtonClicked", "retry_after": 120},
+   "alt_done_log": "PAWN possessed"
+  },
+  {
+   "screen": "character_select_pick_pioneer",
+   "expect": "character_select",
+   "engine": {"label": "name:WBP_CharacterSelectButton_0@WBP_CharacterSelectScreen", "method": "fn:HandleButtonClicked", "retry_after": 3}
+  },
+  {
+   "screen": "character_select_confirm",
+   "expect": "character_select",
+   "engine": {"label": "name:Play@WBP_CharacterSelectScreen", "method": "fn:HandleButtonClicked", "needs_enabled": true, "retry_after": 3},
+   "poll": 300,
+   "done_log": "WORLD (?!L_ClientLobby)\\w+|PAWN possessed"
+  }
+ ],
  "load_game": [
   {
    "screen": "notice_photosensitivity_continue",

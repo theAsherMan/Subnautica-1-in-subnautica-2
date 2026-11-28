@@ -1,0 +1,99 @@
+{
+ "name": "lum_sweep",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {
+   "name": "nt_b15",
+   "at": [
+    8376,
+    -14108,
+    -1095
+   ],
+   "views": "fixed",
+   "yaw": 155.36,
+   "pitch": 5.47,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "lum_b15",
+   "cmdWait": 10
+  },
+  {
+   "name": "nt_b20",
+   "at": [
+    8376,
+    -14108,
+    -1095
+   ],
+   "views": "fixed",
+   "yaw": 155.36,
+   "pitch": 5.47,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "lum_b20",
+   "cmdWait": 10
+  },
+  {
+   "name": "nt_b25",
+   "at": [
+    8376,
+    -14108,
+    -1095
+   ],
+   "views": "fixed",
+   "yaw": 155.36,
+   "pitch": 5.47,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "lum_b25",
+   "cmdWait": 10
+  },
+  {
+   "name": "nt_b30",
+   "at": [
+    8376,
+    -14108,
+    -1095
+   ],
+   "views": "fixed",
+   "yaw": 155.36,
+   "pitch": 5.47,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "lum_b30",
+   "cmdWait": 10
+  },
+  {
+   "name": "ravine_b25",
+   "at": [
+    4190,
+    10850,
+    -4971
+   ],
+   "views": "fixed",
+   "yaw": -97.76,
+   "pitch": 1.99,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "lum_b25",
+   "cmdWait": 10
+  },
+  {
+   "name": "hill_b25",
+   "at": [
+    -11511,
+    -2871,
+    -213
+   ],
+   "views": "fixed",
+   "yaw": 147.49,
+   "pitch": -31.65,
+   "fov": 91.49,
+   "o2": true,
+   "cmdAfter": "lum_b25",
+   "cmdWait": 10
+  }
+ ],
+ "settleSeconds": 15,
+ "_note": "Diagnostic 2026-11-28 investigator-lum: exposure bias sweep via the pawn's BasePostProcess (in-memory). Temporary."
+}

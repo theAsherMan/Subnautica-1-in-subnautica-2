@@ -132,7 +132,7 @@ if [ "${SN2_HIDDEN:-0}" = 1 ]; then
   # DEFAULT (research/01 "Hidden desktop"): start the Shipping exe directly on the hidden desktop SN2Test (Steam client must be running, checked in the precheck; no -applaunch)
   export SN2_HIDDEN_DESKTOP=1 SN2_FOCUSGUARD=0
   # the holder process keeps the desktop handle open for the whole run (background; it exits when the game exits)
-  python -u "$TOOLS/hidden_desktop.py" launch "$(cygpath -w "$SN2_GAME_DIR/Subnautica2/Binaries/Win64/Subnautica2-Win64-Shipping.exe")" -windowed -ResX=1920 -ResY=1080 -WinX=0 -WinY=0 > "$OUT/hidden_holder.log" 2>&1 &
+  python -u "$TOOLS/hidden_desktop.py" launch "$(cygpath -w "$SN2_GAME_DIR/Subnautica2/Binaries/Win64/Subnautica2-Win64-Shipping.exe")" ${SN2_START:+-OverridePlayerStart=$SN2_START} -windowed -ResX=1920 -ResY=1080 -WinX=0 -WinY=0 > "$OUT/hidden_holder.log" 2>&1 &   # SN2_START=<Tag> (opt-in, diagnostics only, 2026-11-27): stock L_Main's default Deep start crashes, use Shallows
   HID_UP=0; for i in $(seq 1 30); do sleep 2; tasklist 2>/dev/null | grep -qi "Subnautica2-Win64" && { HID_UP=1; break; }; done
   if [ $HID_UP = 0 ]; then
     echo "LAUNCH FAILED game not running 60 s after hidden launch" | tee -a "$(dirname "$OUT")/hidden_desktop_status.txt"; echo "RUN DONE LAUNCH_FAILED" >> "$(dirname "$OUT")/hidden_desktop_status.txt"; exit 7

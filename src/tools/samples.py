@@ -8,9 +8,11 @@
 
 Layout: samples/<biome>/<shot>/SN1/{shot.png, info.json}, samples/<biome>/<shot>/SN2/{shot.png, info.json, plan.json}.
 SN1 side: written by `sn1_live.py capture <shot>` (never by this tool). SN2 side: `plan` -> autotest run -> `import`.
-`plan` takes every selected shot's SN2/plan.json waypoint (views "fixed"; with envprobe after each view unless --no-env) into one plan named "samples".
+`plan` takes every selected shot's SN2/plan.json waypoint (views "fixed"; with envprobe after each view unless --no-env) into one plan named "samples",
+and adds "probeAfter": "sn1" (terrain check right after each shot: our SN1Terrain tiles + a 40 m trace down from the camera).
 `import` copies the run's shots by waypoint name into <shot>/SN2/ (shot.png; shot_k<k>.png if a waypoint has several), writes info.json
-(capture time UTC + local, target and measured pose, pitch from the UE4SS.log STATE line, world, game build, run id) and keeps
+(capture time UTC + local, target and measured pose, pitch from the UE4SS.log STATE line, world, game build, run id,
+terrain_check: loaded = the trace hit an SN1 tile, tile counts, HUD shader text) and keeps
 info.json "notes" if the same run/image is re-imported. --move deletes the copied PNGs from the run folder.
 `analyze` needs SN1/shot.png and SN2/shot.png; it writes compare.png (SN1 left, SN2 right, gitignored) and metrics.json and prints the table.
 """
@@ -107,6 +109,7 @@ def cmd_plan(args):
             w = dict(w)
             if not args.get("no_env"):
                 w["cmdAfter"], w["cmdWait"] = "envprobe", 3
+            w["probeAfter"] = "sn1"   # terrain check (sn1probe) right after the shot; read back by `import` into info.json terrain_check
             wps.append(w)
     if not wps:
         print("no shots with SN2/plan.json selected"); return 1
@@ -133,6 +136,53 @@ def states(run):
             if m:
                 t = time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S"))   # UE4SS.log stamps are local time
                 out.append((t, m.group(2), [float(m.group(i)) for i in range(3, 6)], float(m.group(10))))
+    return out
+
+
+TILE = re.compile(r"\bTILE (\S+) .*\bmesh=StaticMesh (\S+) .*\bisVisible=(\S+)")
+COUNT = re.compile(r"\bCOUNT staticMeshActors=(\d+) tagged_or_named=(\d+)")
+TRACE = re.compile(r"\bTRACE cam=\(([^)]*)\) (?:HIT owner=(\S+) comp=(.*?) impact=\(([^)]*)\) dist=(\S+)|NOHIT)")
+
+
+def terrain_check(run, wp, when="after"):
+    """Parse the last 'SN1PROBE <wp>_sn1_<when>' block of the run's UE4SS.log (driver waypoint field probeAfter, verb sn1probe).
+    loaded = the 40 m downward trace from the camera hit one of our SN1Terrain tile actors."""
+    p = os.path.join(run, "UE4SS.log")
+    if not os.path.isfile(p):
+        return None
+    tag = "SN1PROBE %s_sn1_%s " % (wp, when)
+    blk = None
+    for line in open(p, encoding="utf-8", errors="replace"):
+        i = line.find(tag)
+        if i < 0:
+            continue
+        body = line[i + len(tag):].rstrip("\n")
+        if body.startswith("SHADERTEXT"):   # first line of a probe block: start a new block (a retried waypoint logs twice)
+            blk = {"shader_text": body[len("SHADERTEXT "):], "tiles": [], "count": None, "trace": None}
+        if blk is None:
+            continue
+        m = TILE.search(body)
+        if m:
+            blk["tiles"].append((m.group(1), m.group(2).rsplit("/", 1)[-1].split(".")[0], m.group(3) == "true"))
+        m = COUNT.search(body)
+        if m:
+            blk["count"] = int(m.group(2))
+        m = TRACE.search(body)
+        if m:
+            blk["trace"] = ({"hit": True, "owner": m.group(2), "component": m.group(3), "impact": m.group(4), "dist_cm": float(m.group(5))}
+                            if m.group(2) else {"hit": False})
+    if blk is None:
+        return {"loaded": None, "why": "no SN1PROBE %s_sn1_after lines in UE4SS.log (plan without probeAfter?)" % wp}
+    owners = {t[0]: t[1] for t in blk["tiles"]}
+    tr = blk["trace"] or {"hit": False}
+    on_tile = bool(tr.get("hit")) and tr.get("owner") in owners
+    out = {"loaded": on_tile,
+           "tiles": blk["count"], "tiles_visible": sum(1 for t in blk["tiles"] if t[2]),
+           "trace_down_40m": tr, "trace_tile": owners.get(tr.get("owner")) if on_tile else None,
+           "shader_text": blk["shader_text"]}
+    if not on_tile:
+        out["why"] = ("downward trace hit %s, not an SN1 tile" % tr.get("owner")) if tr.get("hit") else \
+            "no hit within 40 m below the camera (seabed farther away, or terrain not loaded)"
     return out
 
 
@@ -174,7 +224,9 @@ def cmd_import(args):
         st = st[-1] if st else None
         target = dict(wps[wp]) if wp in wps else None
         if target:
-            target.pop("cmdAfter", None); target.pop("cmdWait", None)
+            for k in ("cmdAfter", "cmdWait", "probeAfter"):
+                target.pop(k, None)
+        tc = terrain_check(run, wp)
         info = {
             "game": "SN2", "shot": wp, "biome": os.path.basename(os.path.dirname(d)), "image": name,
             "capture_time_utc": utc, "capture_time_local": local,
@@ -183,6 +235,7 @@ def cmd_import(args):
             "measured": {"pawn": [px, py, float(r["pawnZ"])], "camera": [float(r["camX"]), float(r["camY"]), float(r["camZ"])],
                          "yaw": float(r["yaw"]), "pitch": st[3] if st else None},
             "image_size": png_size(src),
+            "terrain_check": tc,
             "notes": "",
         }
         ip = os.path.join(out, "info.json")
@@ -200,6 +253,11 @@ def cmd_import(args):
         if args.get("move"):
             os.remove(src)
         print("OK %s -> %s (%s)" % (r["file"], os.path.relpath(os.path.join(out, name), REPO).replace("\\", "/"), utc))
+        if tc and tc.get("loaded"):
+            print("   terrain: loaded (trace hit %s at %.0f cm; %s/%s tiles visible; %s)" % (
+                tc["trace_tile"], tc["trace_down_40m"]["dist_cm"], tc["tiles_visible"], tc["tiles"], tc["shader_text"]))
+        else:
+            print("   terrain: NOT CONFIRMED - %s" % (tc or {}).get("why", "no UE4SS.log"))
     return rc
 
 
@@ -234,7 +292,8 @@ def cmd_analyze(args):
         met = {"biome": b, "shot": s, "analyzed_utc": times(time.time())[0],
                "sn1_capture_utc": n1.get("capture_time_utc") or n1.get("utc"), "sn2_capture_utc": n2.get("capture_time_utc"),
                "sn2_run": n2.get("run"), "SN1": s1, "SN2": s2, "delta_mean_rgb_sn2_minus_sn1": dm,
-               "mean_colour_distance": round(sum(x * x for x in dm) ** 0.5, 1)}
+               "mean_colour_distance": round(sum(x * x for x in dm) ** 0.5, 1),
+               "sn2_terrain_loaded": (n2.get("terrain_check") or {}).get("loaded")}
         jsave(os.path.join(d, "metrics.json"), met)
         W, H, CAP = 960, 540, 22
         sheet = Image.new("RGB", (2 * W, H + CAP), (20, 20, 20))
@@ -246,12 +305,13 @@ def cmd_analyze(args):
         sheet.save(os.path.join(d, "compare.png"))
         table.append(met)
     if table:
-        print("%-28s %-22s %-22s %8s %8s %8s %8s" % ("shot", "SN1 mean rgb", "SN2 mean rgb", "B/R sn1", "B/R sn2", "lum1/2", "colDist"))
+        print("%-28s %-22s %-22s %8s %8s %8s %8s  %s" % ("shot", "SN1 mean rgb", "SN2 mean rgb", "B/R sn1", "B/R sn2", "lum1/2", "colDist", "SN2 terrain"))
         for m in table:
-            print("%-28s %-22s %-22s %8.2f %8.2f %8s %8.1f" % (
+            tl = {True: "loaded", False: "NOT CONFIRMED", None: "unknown (no probe)"}[m["sn2_terrain_loaded"]]
+            print("%-28s %-22s %-22s %8.2f %8.2f %8s %8.1f  %s" % (
                 m["biome"] + "/" + m["shot"], "(%.0f,%.0f,%.0f)" % tuple(m["SN1"]["mean_rgb"]), "(%.0f,%.0f,%.0f)" % tuple(m["SN2"]["mean_rgb"]),
                 m["SN1"]["blue_over_red"], m["SN2"]["blue_over_red"], "%.0f/%.0f" % (m["SN1"]["lum_mean"], m["SN2"]["lum_mean"]),
-                m["mean_colour_distance"]))
+                m["mean_colour_distance"], tl))
         print("compare.png + metrics.json written in each shot folder; next: view each compare.png and write analysis.md (samples/README.md)")
     return rc
 

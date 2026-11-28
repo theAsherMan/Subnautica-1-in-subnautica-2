@@ -3,12 +3,12 @@
  "shot": "small_hill",
  "biome": "safeShallows",
  "image": "shot.png",
- "capture_time_utc": "2026-11-26T10:07:36Z",
- "capture_time_local": "2026-11-26T18:07:36+08:00",
+ "capture_time_utc": "2026-11-28T08:26:38Z",
+ "capture_time_local": "2026-11-28T16:26:38+08:00",
  "world": "L_SN2World",
  "game_build": "131439 2026-09-18T20:24:32",
- "run": "<Workspace>/autotest/20261126_180611_sn1cmp_shallows_env",
- "plan": "sn1cmp_shallows_env",
+ "run": "<Workspace>/autotest/20261128_162423_samples",
+ "plan": "samples",
  "target": {
   "name": "small_hill",
   "at": [
@@ -31,14 +31,28 @@
   "camera": [
    -11511.0,
    -2871.0,
-   -268.3
+   -268.1
   ],
-  "yaw": 148.32,
-  "pitch": -30.63
+  "yaw": 148.28,
+  "pitch": -30.57
  },
  "image_size": [
   1920,
   1080
  ],
+ "terrain_check": {
+  "loaded": true,
+  "tiles": 32,
+  "tiles_visible": 32,
+  "trace_down_40m": {
+   "hit": true,
+   "owner": "StaticMeshActor_21",
+   "component": "StaticMeshComponent /Game/Mods/SN2EmptyWorld/L_SN2World.L_SN2World:PersistentLevel.StaticMeshActor_21.StaticMeshComponent0",
+   "impact": "-11511,-2871,-1198",
+   "dist_cm": 930.0
+  },
+  "trace_tile": "SM_origin_tile_1_1",
+  "shader_text": "Compiling|Loading Shaders... {a}"
+ },
  "notes": ""
 }

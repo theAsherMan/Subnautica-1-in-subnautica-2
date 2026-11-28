@@ -36,5 +36,5 @@
  ],
  "settleSeconds": 15,
  "_note": "Diagnostic 2026-11-26 brownwater: same probes in stock L_Main",
- "autoPioneer": true
+ "pioneer": true
 }

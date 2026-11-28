@@ -70,6 +70,7 @@ Global: `BP_UWESky_C` — `SetTimeOfDay "HH:MM"`, `SetCurrentWeather <DA name>` 
   live in World Partition cells that are not loaded, and `unreal.WorldPartitionEditorSubsystem` does not exist in Python, so SN2's own hand-tuned per-area
   values were not obtained. **FAILED (2026-11-26)** as a calibration source; summary in `<Workspace>/reports/lmain_biome_regions/summary.txt`.
 - Known blocker for any comparison: L_SN2World water looks dark brown/orange without blue fog (see `00` step 3.1(a)); a region's effect may be hidden by it.
+- **Region water volume (SOLVED 2026-11-27, `10` 'Region water volume in L_SN2World: SOLVED'):** the underwater look needs the Volume-domain `M_OceanVolume` on a region cube, the placed ocean region owning tracker slot 15 (remove `BP_Ocean`'s child region `CAT_0`) and `BiomeRegionVolumeType` = Shape at runtime (set from the cooked ModActor graph; a saved Shape is never serialized because the editor stub default is Shape, the game default Brush). Baking the MID alone (earlier root-cause guess) was not enough. Earlier diagnostic (2026-11-26): at the ravine pose the 42 SN1Biome region PostProcessComponents all read BlendWeight 0.0 (the ocean region's PP reads 1.0) although the camera is inside one box. Whether boxes need an overlap/collision setup that the T3D-pasted `WaterBoxVolumeComponent` lacks: UNTESTED.
 
 ## Music and ambience
 Spawn `UWEMusicVolume` and set `MusicVolumeComponent.Config` to a `UUWEMusicVolumeData` (`/Game/Data/AudioData/MusicData/DA_Music_*_Playlist`), `Priority` higher than neighbours.

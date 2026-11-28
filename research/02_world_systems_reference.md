@@ -69,6 +69,8 @@ Values: `TimeOfDay` 0.313, `NormalizedDaylight` 0.47, `StartingWeather` = `/UWEW
 `BlendedGlobalWeatherSettings <F_GlobalWeatherSettings>`, `SkyOverrides` (map). Weather types: `DA_Clear`, `DA_ClearGameStart`, `DA_CloudyA/B`, `DA_SparseClouds`,
 `DA_Misty`, `DA_DistantStormy`, `DA_StormA/B`, `DA_Storm_Quick`, `DA_LobbyWeather`; `DA_WeatherForecast`.
 
+Exposure (VERIFIED 2026-11-28, `10` 6c): `PostProcessComponentSky` (unbound, priority -1000) holds `AutoExposureBias` 0.5, Min -10, Max 0 (day; -5 at night), histogram method, speeds 5/5, low percent 20, `AutoExposureBiasCurve` `/Game/VFX/Camera/CF_Exposure_Compensation_Curve_OCEAN`, meter mask `T_ExpMeteringMaskExample`; `DS_Main_Day` (`/Game/Blueprints/World/Sky/`) animates `Settings.AutoExposureBias` (constant 0.5) and `Settings.AutoExposureMaxBrightness` every frame, so runtime writes to that component are overwritten. Mean luminance of the frame follows the bias: bias 0.5 -> ~41, 2.0 -> 126, 2.5 -> 157, 3.0 -> 183 (natures_table, L_SN2World). A unbound PostProcessVolume / the pawn's `BasePostProcess` (priority 0) outranks the sky and is not rewritten.
+
 ## Audio
 - `UWEMusicVolume` ×18: `MusicVolumeComponent : UWEMusicVolumeComponent` → `Config` = `UUWEMusicVolumeData` (e.g. `/Game/Data/AudioData/MusicData/DA_Music_Sparse_Plains_Playlist`),
   `Priority` 1, `Layer` (enum) 0. Playlists exist for shallows, plateaus, graveyard, coral gardens, sparse plains, ruins, heat zone, thermal caves, metal farms, eastern wastes, power station, wrecks, deep start.

@@ -63,6 +63,8 @@ def pick(todo, btns, last_k):
             continue
         for b in btns:
             if btn_matches(b, label) and not denied(b):
+                if eng.get("needs_enabled") and b.get("enabled", "true").strip().lower() == "false":
+                    continue   # e.g. the character-select Confirm button is disabled until a pioneer is selected
                 return k, b
     return None, None
 

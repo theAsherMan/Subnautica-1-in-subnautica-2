@@ -1,0 +1,12 @@
+{
+ "name": "uwprobe_sn2",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "pod_underwater_side", "offset": [1500, 0, -300], "views": "fixed", "yaw": 0, "pitch": 0, "fov": 91.49, "o2": true, "cmdAfter": "uwprobe", "cmdWait": 3},
+  {"name": "pod_10m_below", "offset": [0, 0, -1000], "views": "fixed", "yaw": 0, "pitch": 0, "fov": 91.49, "o2": true, "cmdAfter": "uwprobe", "cmdWait": 3},
+  {"name": "natures_table", "at": [8376, -14108, -1095], "views": "fixed", "yaw": 155.36, "pitch": 5.47, "fov": 91.49, "o2": true, "cmdAfter": "uwprobe", "cmdWait": 3}
+ ],
+ "settleSeconds": 15,
+ "_note": "Diagnostic 2026-11-27 investigator-water: uwprobe at the same two pod-relative underwater poses as uwprobe_lmain, plus the natures_table sample view, in L_SN2World."
+}

@@ -1,10 +1,10 @@
 {
  "biome": "safeShallows",
  "shot": "natures_table",
- "analyzed_utc": "2026-11-26T10:34:35.323512Z",
+ "analyzed_utc": "2026-11-28T08:27:26.158246Z",
  "sn1_capture_utc": "2026-11-26T09:34:15Z",
- "sn2_capture_utc": "2026-11-26T10:07:43Z",
- "sn2_run": "<Workspace>/autotest/20261126_180611_sn1cmp_shallows_env",
+ "sn2_capture_utc": "2026-11-28T08:26:21Z",
+ "sn2_run": "<Workspace>/autotest/20261128_162423_samples",
  "SN1": {
   "mean_rgb": [
    83.0,
@@ -34,35 +34,36 @@
  },
  "SN2": {
   "mean_rgb": [
-   54.5,
-   48.7,
-   56.6
+   88.1,
+   151.2,
+   173.3
   ],
-  "lum_mean": 50.5,
-  "lum_std": 23.6,
-  "blue_over_red": 1.037,
+  "lum_mean": 139.4,
+  "lum_std": 39.8,
+  "blue_over_red": 1.967,
   "top_mid_bottom_rgb": [
    [
-    55.7,
-    50.6,
-    58.4
+    110.2,
+    175.0,
+    214.9
    ],
    [
-    64.8,
-    56.5,
-    65.2
+    95.9,
+    164.5,
+    182.7
    ],
    [
-    43.1,
-    39.2,
-    46.0
+    58.2,
+    114.1,
+    122.5
    ]
   ]
  },
  "delta_mean_rgb_sn2_minus_sn1": [
-  -28.5,
-  -108.2,
-  -134.2
+  5.1,
+  -5.7,
+  -17.5
  ],
- "mean_colour_distance": 174.7
+ "mean_colour_distance": 19.1,
+ "sn2_terrain_loaded": true
 }

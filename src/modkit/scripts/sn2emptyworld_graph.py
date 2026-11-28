@@ -3,7 +3,7 @@ with the SN2GraphTools plugin (unreal.SN2GraphLibrary). Design: research/09_intr
 
 Generated behaviour:
   BeginPlay: read + set cvar wp.Runtime.UpdateStreamingSources 0 (value read back into public vars; wp.Runtime.HLOD does not exist in this build);
-             lobby -> UWELobbyStatics.SetWorldLevel(WORLD_LEVEL) then destroy self; L_SN2World (ocean is saved in the level) and any other non-L_Main world -> destroy self;
+             lobby -> UWELobbyStatics.SetWorldLevel(WORLD_LEVEL) then destroy self; L_SN2World (ocean is saved in the level) -> for every BP_UWEOceanBiomeRegionActor_C call KismetSystemLibrary.SetBytePropertyByName(BiomeRegionVolumeType, 1 = BRVT_Shape) (the saved value cannot persist: editor stub default is Shape, game default is Brush, so a saved Shape is never serialized), then destroy self; any other non-L_Main world -> destroy self;
              if current level == L_Main: bActive=true, call Purge once, looping 1 s timer -> Purge; else destroy self (lobby).
   Purge:     PurgeCount++; destroy creatures (UWEAIPawn/UWEAICharacter), UWEWorldPopGlobalResourcesDataStorage, and every actor whose
              name contains "_UAID_" unless it is a PlayerStart or its class display name is on the KEEP list; GC if anything was destroyed.
@@ -350,8 +350,31 @@ try:
     link(lvl, "ReturnValue", is_new, "A")
     b2 = branch(is_new, "ReturnValue")
     link(b1, "else", b2, "execute")
+    # The editor's stub class default for BiomeRegionVolumeType is Shape, the game's real default is Brush, so a Shape saved in the map is never
+    # serialized (research/10). Set it on the saved ocean region(s) here, then destroy self.
+    OCEAN = _cls("/Game/Blueprints/World/Water/BP_UWEOceanBiomeRegionActor.BP_UWEOceanBiomeRegionActor_C")
+    gao = call(GS, "GetAllActorsOfClass")
+    L.set_pin_default_object(gao, "ActorClass", OCEAN)
+    link(b2, "then", gao, "execute")
+    fe2 = macro("ForEachLoop")
+    link(gao, "then", fe2, "Exec")
+    link(gao, "OutActors", fe2, "Array")
+    sb = call(KSL, "SetBytePropertyByName", PropertyName="BiomeRegionVolumeType", Value=1)
+    link(fe2, "LoopBody", sb, "execute")
+    link(fe2, "Array Element", sb, "Object")
+    # the SN1Biome_* boxes (BP_UWEWaterBiomeRegionActor_C) need the same Shape type, otherwise their volumes are ignored (2026-11-28)
+    WATER = _cls("/Game/Blueprints/World/Water/BP_UWEWaterBiomeRegionActor.BP_UWEWaterBiomeRegionActor_C")
+    gaw = call(GS, "GetAllActorsOfClass")
+    L.set_pin_default_object(gaw, "ActorClass", WATER)
+    link(fe2, "Completed", gaw, "execute")
+    fe3 = macro("ForEachLoop")
+    link(gaw, "then", fe3, "Exec")
+    link(gaw, "OutActors", fe3, "Array")
+    sbw = call(KSL, "SetBytePropertyByName", PropertyName="BiomeRegionVolumeType", Value=1)
+    link(fe3, "LoopBody", sbw, "execute")
+    link(fe3, "Array Element", sbw, "Object")
     gone3 = call(ACTOR, "K2_DestroyActor")
-    link(b2, "then", gone3, "execute")
+    link(fe3, "Completed", gone3, "execute")
     gone2 = call(ACTOR, "K2_DestroyActor")
     link(b2, "else", gone2, "execute")
 

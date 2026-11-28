@@ -1,0 +1,14 @@
+{
+ "name": "lum_sn2",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "nt_base", "at": [8376, -14108, -1095], "views": "fixed", "yaw": 155.36, "pitch": 5.47, "fov": 91.49, "o2": true, "cmdAfter": "lum_read", "cmdWait": 6},
+  {"name": "nt_bias3", "at": [8376, -14108, -1095], "views": "fixed", "yaw": 155.36, "pitch": 5.47, "fov": 91.49, "o2": true, "cmdAfter": "lum_bias", "cmdWait": 12},
+  {"name": "nt_bias6", "at": [8376, -14108, -1095], "views": "fixed", "yaw": 155.36, "pitch": 5.47, "fov": 91.49, "o2": true, "cmdAfter": "lum_bias_hi", "cmdWait": 12},
+  {"name": "nt_unclamp", "at": [8376, -14108, -1095], "views": "fixed", "yaw": 155.36, "pitch": 5.47, "fov": 91.49, "o2": true, "cmdAfter": "lum_unclamp", "cmdWait": 12},
+  {"name": "nt_nocurve", "at": [8376, -14108, -1095], "views": "fixed", "yaw": 155.36, "pitch": 5.47, "fov": 91.49, "o2": true, "cmdAfter": "lum_nocurve", "cmdWait": 12}
+ ],
+ "settleSeconds": 15,
+ "_note": "Diagnostic 2026-11-28 investigator-lum: exposure readout + in-memory exposure A/B at the natures_table view (L_SN2World). Temporary."
+}

@@ -41,15 +41,22 @@ Tool: `src/tools/samples.py` (`list`, `plan`, `import`, `analyze`; run `python -
    with a timeout of 600 s or more (300 s + 30 s per view). The plan runs `envprobe` and then waits 3 s before every shot, so
    the water look at each view is logged too. Keep that timing: the water look changes in the first seconds after a teleport
    (2026-11-26, `shallow_ravine` clear at 1 s and brown haze at 4 s), so only shots taken with the same timing can be compared.
+   Right after every shot it also runs the terrain check (`"probeAfter": "sn1"`, verb `sn1probe`): our SN1Terrain tile actors and a 40 m
+   line trace straight down from the camera, logged as `SN1PROBE <shot>_sn1_after ...` in `UE4SS.log`.
 3. Run `bash src/tools/autotest.sh samples --input engine --timeout <printed value>`. Do this every time; never skip it because SN2 photos
    already exist (they may predate your changes, see above). Install any other mod you changed first. It installs the current SN2AutoTest + SN2Census, backs up
    saves, launches, takes the shots, quits and deletes the test world it created. Result: `<Workspace>/autotest/<timestamp>_samples/`.
    If the result is not DONE, diagnose it first (`summary.txt`, `driver.log`, `UE4SS.log`, `crash/`). Raise the timeout only after you
    know why it ran out; a second timeout means something is broken. Import the shots that were taken anyway.
 4. `python -I src/tools/samples.py import <run dir> --move` copies each shot into `<biome>/<shot>/SN2/shot.png` with a new `info.json`. The
-   previous SN2 shot is replaced; git keeps the old one.
+   previous SN2 shot is replaced; git keeps the old one. It also writes `terrain_check` into `info.json` and prints `terrain: loaded` or
+   `terrain: NOT CONFIRMED - <why>` per shot.
+   **A photo only counts if its terrain is confirmed** (`terrain_check.loaded` true = the downward trace hit one of our SN1 tiles). If it is
+   not, do not judge water, fog or light from that photo: write "terrain not confirmed" plus the reason in the analysis, and find out why
+   (no hit within 40 m can also mean the seabed is farther than 40 m below the camera; then say so and check `tiles_visible`).
 5. `python -I src/tools/samples.py analyze [--biome <b>] [--shot a,b]` writes `metrics.json` and `compare.png` per shot and prints a table:
-   mean RGB, blue/red ratio (`B/R`: SN1 Safe Shallows is 1.5-2.3), mean luminance, and the distance between the two mean colours (`colDist`).
+   mean RGB, blue/red ratio (`B/R`: SN1 Safe Shallows is 1.5-2.3), mean luminance, the distance between the two mean colours (`colDist`),
+   and the SN2 terrain check (`loaded`, `NOT CONFIRMED`, or `unknown (no probe)` for photos imported before 2026-11-26's terrain check).
 6. Look at every `compare.png` (open it with the Read tool). Write `<shot>/analysis.md` with the template below. Before you overwrite it,
    read the previous `analysis.md` (or `git show HEAD:samples/<biome>/<shot>/analysis.md`) and say what got better or worse.
 7. Get the water settings at each view from the run's `UE4SS.log`: lines `ENVPROBE <shot> ...` (which biome regions exist and their
@@ -66,6 +73,8 @@ Tool: `src/tools/samples.py` (`list`, `plan`, `import`, `analyze`; run `python -
 
 SN1 shot <capture_time_utc> | SN2 shot <capture_time_utc>, run `<Workspace>/autotest/<ts>_<plan>`, world <world>, build <game_build>
 Pose error: target yaw/pitch vs measured (from SN2/info.json)
+SN2 terrain: loaded (trace hit <tile> at <dist> cm, <n>/<n> tiles visible, HUD "<shader text>") | NOT CONFIRMED: <why>
+(when not confirmed, the water/fog/light rows below are not judged)
 
 | Metric | SN1 | SN2 |
 |---|---|---|
@@ -114,6 +123,10 @@ The SN1 water settings of every biome can be dumped with `python src/tools/sn1_l
   - `target`: the plan waypoint, with `at` as the pawn position in UE cm.
   - `measured`: `pawn`, `camera`, `yaw` and `pitch` as logged at the shot.
   - `image_size`.
+  - `terrain_check` (from the `SN1PROBE <shot>_sn1_after` lines right after the shot): `loaded` (true = the 40 m downward trace from the
+    camera hit one of our SN1 tiles; false; null = no probe lines), `tiles` / `tiles_visible` (SN1Terrain tile actors in the world /
+    visible), `trace_down_40m` (hit, owner actor, impact, distance cm), `trace_tile` (mesh name of the tile hit), `shader_text` (HUD
+    "Loading Shaders" text), `why` when not loaded.
 
 SN1 to SN2 mapping, with map offset 0 (`research/10_sn1_world_data.md` §3):
 - UE.X = 100 × Unity z, UE.Y = 100 × Unity x, UE.Z = 100 × Unity y.

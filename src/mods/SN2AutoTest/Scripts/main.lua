@@ -1070,6 +1070,348 @@ function verbs.watersys(args)
     pcall(function() verbs.envprobe(label) end)
     return true, "watersys done"
 end
+-- ppwatch <label>: TEMPORARY diagnostic (2026-11-26, brownwater PP BlendWeight question). Never calls the VolumeTracker query (it hung the game
+-- thread). Logs PPW lines: the pawn location, region component properties of the ocean region and of the region box that contains the pawn, and then
+-- a time series of every UWEBiomePostProcessComponent BlendWeight (count > 0, max, ocean, the region containing the pawn).
+function verbs.ppwatch(args)
+    local label = tostring(args ~= "" and args or "pw")
+    local function P(s) log("PPW " .. label .. " " .. s) end
+    local pawn = getPawn(getPC())
+    local ploc = nil
+    pcall(function() ploc = pawn:K2_GetActorLocation() end)
+    P("pawn=" .. fmtV(ploc))
+    local function inside(a)
+        local ok, r = pcall(function()
+            local c = a.WaterBoxVolumeComponent
+            local e = c.BoxExtent
+            local o = c:K2_GetComponentLocation()
+            local s = c:K2_GetComponentScale()
+            return math.abs(ploc.X - o.X) <= e.X * s.X and math.abs(ploc.Y - o.Y) <= e.Y * s.Y and math.abs(ploc.Z - o.Z) <= e.Z * s.Z
+        end)
+        return ok and r == true
+    end
+    local function dumpRegion(a)
+        local nm = nameOf(a)
+        for _, k in ipairs({ "BiomeRegionVolumeType", "BiomeRegionType", "bIsOcean", "bHasWaterSurface", "bUseDistanceFieldMask", "bMaskOceanSurface" }) do
+            P(nm .. " ACTOR " .. k .. "=" .. tostring(try(function() return a[k] end)))
+        end
+        pcall(function() P(nm .. " ACTOR loc=" .. fmtV(a:K2_GetActorLocation()) .. " scale=" .. fmtV(a:GetActorScale3D())) end)
+        for _, cn in ipairs({ "WaterBoxVolumeComponent", "WaterBrushVolumeComponent" }) do
+            local c = nil
+            pcall(function() c = a[cn] end)
+            if isValid(c) then
+                P(string.format("%s %s class=%s", nm, cn, tostring(try(function() return c:GetClass():GetFName():ToString() end))))
+                P(string.format("%s %s BoxExtent=%s scale=%s loc=%s", nm, cn, fmtV(try(function() return c.BoxExtent end)), fmtV(try(function() return c:K2_GetComponentScale() end)), fmtV(try(function() return c:K2_GetComponentLocation() end))))
+                P(string.format("%s %s VolumeType=%s Priority=%s", nm, cn, tostring(try(function() return c.VolumeData.VolumeType end)), tostring(try(function() return c.VolumeData.Priority end))))
+                P(string.format("%s %s profile=%s collEnabled=%s genOverlap=%s objType=%s visible=%s regd=%s", nm, cn,
+                    str(try(function() return c.BodyInstance.CollisionProfileName end)), tostring(try(function() return c:GetCollisionEnabled() end)),
+                    tostring(try(function() return c:GetGenerateOverlapEvents() end)), tostring(try(function() return c:GetCollisionObjectType() end)),
+                    tostring(try(function() return c:IsVisible() end)), tostring(try(function() return c:IsRegistered() end))))
+            else
+                P(nm .. " " .. cn .. " = nil")
+            end
+        end
+        pcall(function() P(nm .. " BiomeVolumeComponent bAutoActivate/active=" .. tostring(a.BiomeVolumeComponent:IsActive()) .. " visible=" .. tostring(a.BiomeVolumeComponent:IsVisible())) end)
+        pcall(function() P(nm .. " PP active=" .. tostring(a.PostProcessComponent:IsActive()) .. " enabled=" .. tostring(a.PostProcessComponent.bEnabled) .. " blendRadius=" .. tostring(a.PostProcessComponent.BlendRadius) .. " blendw=" .. tostring(a.PostProcessComponent.BlendWeight)) end)
+    end
+    local regs = {}
+    for _, cn in ipairs({ "BP_UWEOceanBiomeRegionActor_C", "BP_UWEWaterBiomeRegionActor_C" }) do
+        for _, a in ipairs(findAll(cn)) do regs[#regs + 1] = a end
+    end
+    local mine, nIn = nil, 0
+    for _, a in ipairs(regs) do
+        local n = nameOf(a)
+        if n:find("^BP_UWEOceanBiomeRegionActor") then dumpRegion(a) end
+        if n:find("^BP_UWEWaterBiomeRegionActor") and ploc and inside(a) then
+            nIn = nIn + 1
+            if not mine then mine = a; dumpRegion(a) end
+            P("INSIDE " .. n)
+        end
+    end
+    P("regions=" .. #regs .. " containingPawn=" .. nIn)
+    local t0 = os.clock()
+    local function sample(tag)
+        local n, npos, mx, oc, mine_w = 0, 0, 0, "?", "?"
+        for _, c in ipairs(findAll("UWEBiomePostProcessComponent")) do
+            n = n + 1
+            local w = tonumber(try(function() return c.BlendWeight end)) or 0
+            if w > 0 then npos = npos + 1 end
+            if w > mx then mx = w end
+            local own = ""
+            pcall(function() own = c:GetOwner():GetFName():ToString() end)
+            if own:find("^BP_UWEOceanBiomeRegionActor_C_1$") then oc = tostring(w) end
+            if mine and own == nameOf(mine) then mine_w = tostring(w) end
+        end
+        local pl = "?"
+        pcall(function() pl = fmtV(getPawn(getPC()):K2_GetActorLocation()) end)
+        P(string.format("SERIES %s t=%.1f pawn=%s n=%d weightPositive=%d max=%.3f ocean=%s containing=%s", tag, os.clock() - t0, pl, n, npos, mx, oc, mine_w))
+    end
+    sample("t0")
+    for _, d in ipairs({ 1, 2, 4, 8, 15, 25 }) do
+        after(d, function() sample("d" .. d) end)
+    end
+    return true, "ppwatch armed"
+end
+-- uwprobe <label>: TEMPORARY read-only diagnostic (2026-11-27, investigator-water: why does the view under water render like dry land).
+-- Same lines in L_Main and L_SN2World (diff the UWPROBE lines). Reads only: engine WaterSubsystem camera state, ocean water body component,
+-- water zones, ocean/biome region mesh components, sky/time of day/weather, lights, fog, post process components, a few cvars.
+-- Never touches the VolumeTracker query. Each read is in its own pcall.
+function verbs.uwprobe(args)
+    local label = tostring(args ~= "" and args or "uw")
+    local function P(s) log("UWPROBE " .. label .. " " .. s) end
+    local function f1(x)
+        local t = type(x)
+        if t == "nil" then return "nil" end
+        if t == "number" then return string.format("%.6g", x) end
+        if t == "boolean" or t == "string" then return tostring(x) end
+        if t == "userdata" then
+            local r
+            pcall(function() r = string.format("(%.5g,%.5g,%.5g,%.5g)", x.R, x.G, x.B, x.A) end)
+            if r then return r end
+            pcall(function() r = string.format("(%.5g,%.5g,%.5g)", x.X, x.Y, x.Z) end)
+            if r then return r end
+            pcall(function() r = string.format("(P%.4g,Y%.4g,R%.4g)", x.Pitch, x.Yaw, x.Roll) end)
+            if r then return r end
+            return str(x)
+        end
+        return tostring(x)
+    end
+    local function rd(o, names)
+        local parts = {}
+        for _, n in ipairs(names) do
+            local v = "?"
+            local ok, x = pcall(function() return o[n] end)
+            if ok then v = f1(x) end
+            parts[#parts + 1] = n .. "=" .. v
+        end
+        return table.concat(parts, " ")
+    end
+    local function call0(o, fn, ...)
+        local a = { ... }
+        local ok, r = pcall(function() return o[fn](o, table.unpack(a)) end)
+        if ok then return f1(r) end
+        return "ERR"
+    end
+    local function matParams(m, tag)
+        if not isValid(m) then return end
+        pcall(function() P(tag .. " MATERIAL " .. str(m:GetFullName())) end)
+        pcall(function()
+            local sp = m.ScalarParameterValues
+            local n = sp:GetArrayNum()
+            local parts = {}
+            for i = 1, math.min(n, 60) do
+                pcall(function() parts[#parts + 1] = str(sp[i].ParameterInfo.Name) .. "=" .. f1(sp[i].ParameterValue) end)
+            end
+            P(tag .. " MAT scalars(" .. n .. ") " .. table.concat(parts, " "))
+        end)
+        pcall(function()
+            local vp = m.VectorParameterValues
+            local n = vp:GetArrayNum()
+            local parts = {}
+            for i = 1, math.min(n, 40) do
+                pcall(function() parts[#parts + 1] = str(vp[i].ParameterInfo.Name) .. "=" .. f1(vp[i].ParameterValue) end)
+            end
+            P(tag .. " MAT vectors(" .. n .. ") " .. table.concat(parts, " "))
+        end)
+        pcall(function() P(tag .. " MAT parent=" .. str(m.Parent:GetFullName())) end)
+    end
+    local pc = getPC()
+    local world = nil
+    pcall(function() world = pc:GetWorld() end)
+    pcall(function() P("WORLD " .. str(world:GetFullName())) end)
+    local cl = nil
+    pcall(function() cl = pc.PlayerCameraManager:GetCameraLocation() end)
+    if cl then P(string.format("CAM (%.1f,%.1f,%.1f)", cl.X, cl.Y, cl.Z)) end
+    -- 1. engine water subsystem: camera underwater state (the engine's underwater post process is driven by this)
+    for _, s in ipairs(findAll("WaterSubsystem")) do
+        P("WATERSUBSYS " .. nameOf(s) .. " class=" .. str(try(function() return s:GetClass():GetFName():ToString() end)))
+        for _, fn in ipairs({ "GetCameraUnderwaterDepth", "IsUnderwaterPostProcessEnabled", "IsWaterRenderingEnabled", "GetOceanBaseHeight", "GetOceanFloodHeight", "GetOceanTotalHeight", "GetWaterTimeSeconds" }) do
+            P("WATERSUBSYS " .. fn .. "=" .. call0(s, fn))
+        end
+        pcall(function() P("WATERSUBSYS MPC=" .. str(s.MaterialParameterCollection:GetFullName())) end)
+    end
+    local ksl = nil
+    pcall(function() ksl = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary") end)
+    if ksl then
+        local parts = {}
+        for _, cv in ipairs({ "r.Water.Enabled", "r.Water.EnableUnderwaterPostProcess", "r.Water.WaterMesh.EnableRendering", "r.Water.EnableShallowWaterSimulation", "r.Water.WaterInfo.RenderMethod", "r.VolumetricFog", "r.Lumen.DiffuseIndirect.Allow", "r.SkyLight.RealTimeReflectionCapture", "r.DefaultFeature.AutoExposure", "r.EyeAdaptationQuality" }) do
+            local ok, v = pcall(function() return ksl:GetConsoleVariableIntValue(cv) end)
+            parts[#parts + 1] = cv .. "=" .. (ok and tostring(v) or "?")
+        end
+        P("CVARS " .. table.concat(parts, " "))
+    end
+    -- 2. water body ocean component(s)
+    for _, b in ipairs(findAll("WaterBodyOceanComponent")) do
+        local own = "?"
+        pcall(function() own = b:GetOwner():GetFName():ToString() end)
+        P("OCEANBODY " .. nameOf(b) .. " owner=" .. own)
+        P("OCEANBODY " .. rd(b, { "CollisionExtents", "CollisionHeightOffset", "OceanExtents", "HeightOffset", "bCenterOnWaterZone", "WaterBodyIndex", "OverlapMaterialPriority", "bAffectsLandscape", "ShapeDilation", "FixedWaterDepth", "TargetWaveMaskDepth", "MaxWaveHeightOffset", "WaterLOD0MaterialDistance", "bHiddenInGame" }))
+        P("OCEANBODY ShouldRender=" .. call0(b, "ShouldRender") .. " IsVisible=" .. call0(b, "IsVisible") .. " IsRegistered=" .. call0(b, "IsRegistered") .. " IsActive=" .. call0(b, "IsActive"))
+        for _, k in ipairs({ "UnderwaterPostProcessMaterial", "WaterMaterial", "WaterStaticMeshMaterial", "WaterInfoMaterial", "WaterHLODMaterial", "UnderwaterPostProcessMID", "WaterMID", "WaterStaticMeshMID", "OwningWaterZone", "WaterZoneOverride", "WaterMeshOverride" }) do
+            local ok, v = pcall(function() return b[k] end)
+            local s = "?"
+            if ok then
+                if type(v) == "userdata" then
+                    local okv, valid = pcall(function() return v:IsValid() end)
+                    if okv and valid then s = str(v:GetFullName()) elseif okv then s = "INVALID/NULL" else s = f1(v) end
+                else s = f1(v) end
+            end
+            P("OCEANBODY " .. k .. "=" .. s)
+        end
+        pcall(function()
+            local u = b.UnderwaterPostProcessSettings
+            P("OCEANBODY UPPS " .. rd(u, { "bEnabled", "Priority", "BlendRadius", "BlendWeight" }) .. " mat=" .. str(try(function() return u.UnderwaterPostProcessMaterial:GetFullName() end)))
+        end)
+        pcall(function()
+            local comps = toList(b:GetCollisionComponents(false))
+            P("OCEANBODY collisionComponents=" .. #comps)
+            for i, c in ipairs(comps) do
+                if i > 8 then break end
+                P(string.format("OCEANBODY COLL[%d] %s class=%s collEnabled=%s objType=%s profile=%s registered=%s loc=(%s) scale=(%s) extent=%s", i, nameOf(c),
+                    str(try(function() return c:GetClass():GetFName():ToString() end)), call0(c, "GetCollisionEnabled"), call0(c, "GetCollisionObjectType"),
+                    str(try(function() return c.BodyInstance.CollisionProfileName end)), call0(c, "IsRegistered"),
+                    fmtV(try(function() return c:K2_GetComponentLocation() end)), fmtV(try(function() return c:K2_GetComponentScale() end)), f1(try(function() return c.BoxExtent end))))
+            end
+        end)
+        pcall(function() P("OCEANBODY CollisionBoxes=" .. tostring(b.CollisionBoxes:GetArrayNum()) .. " CollisionHullSets=" .. tostring(b.CollisionHullSets:GetArrayNum())) end)
+        local mids = {}
+        for _, k in ipairs({ "UnderwaterPostProcessMID", "WaterMID", "WaterStaticMeshMID" }) do
+            pcall(function() local m = b[k]; if isValid(m) then matParams(m, "OCEANBODY " .. k) end end)
+        end
+    end
+    -- 3. water zones, water body actors
+    for _, z in ipairs(findAll("WaterZone")) do
+        P("WATERZONE " .. nameOf(z) .. " " .. rd(z, { "ZoneExtent", "WaterZoneIndex", "OverlapPriority", "CaptureZOffset", "RenderTargetResolution" }) .. " loc=" .. fmtV(try(function() return z:K2_GetActorLocation() end)) .. " owned=" .. tostring(try(function() return z.OwnedWaterBodies:GetArrayNum() end)))
+        pcall(function() P("WATERZONE WaterMesh visible=" .. call0(z.WaterMesh, "IsVisible") .. " registered=" .. call0(z.WaterMesh, "IsRegistered")) end)
+    end
+    for _, a in ipairs(findAll("BP_Ocean_C")) do
+        P("OCEANACTOR " .. nameOf(a) .. " " .. rd(a, { "BodySize", "WaterLinePPMThreshold", "UnderwaterStateUpdateRate", "bDirty", "WaterBodyType", "WaterBodyIndex" }))
+        pcall(function() P("OCEANACTOR PPUnderwaterBlur " .. rd(a.PPUnderwaterBlur, { "bEnabled", "bUnbound", "Priority", "BlendWeight", "BlendRadius" }) .. " active=" .. call0(a.PPUnderwaterBlur, "IsActive")) end)
+        pcall(function() P("OCEANACTOR WaterBodyComponent=" .. str(a.WaterBodyComponent:GetFullName())) end)
+        pcall(function() P("OCEANACTOR WaterInfoMeshComponent visible=" .. call0(a.WaterInfoMeshComponent, "IsVisible") .. " registered=" .. call0(a.WaterInfoMeshComponent, "IsRegistered")) end)
+    end
+    -- 4. ocean + camera-containing biome region mesh components
+    local function regionInfo(a)
+        local nm = nameOf(a)
+        P("REGION " .. nm .. " " .. rd(a, { "BiomeRegionType", "BiomeRegionVolumeType", "bIsOcean", "bHasWaterSurface", "bMaskOceanSurface", "bUseDistanceFieldMask", "bHidden" }))
+        for _, cn in ipairs({ "WaterStaticMeshComponent", "WaterSurfaceMeshComponent", "BiomeVolumeComponent", "PostProcessComponent", "WaterBoxVolumeComponent", "WaterBrushVolumeComponent" }) do
+            local c = nil
+            pcall(function() c = a[cn] end)
+            if isValid(c) then
+                local line = string.format("REGION %s %s class=%s visible=%s registered=%s active=%s", nm, cn, str(try(function() return c:GetClass():GetFName():ToString() end)), call0(c, "IsVisible"), call0(c, "IsRegistered"), call0(c, "IsActive"))
+                if cn == "WaterStaticMeshComponent" or cn == "WaterSurfaceMeshComponent" then
+                    line = line .. " " .. rd(c, { "bHiddenInGame", "bVisible", "bRenderInMainPass", "bRenderInDepthPass", "bCastDynamicShadow", "bAffectDistanceFieldLighting", "CastShadow", "bUseAsOccluder", "LDMaxDrawDistance", "TranslucencySortPriority" })
+                    line = line .. " mesh=" .. str(try(function() return c.StaticMesh:GetFullName() end)) .. " nMats=" .. call0(c, "GetNumMaterials")
+                    line = line .. " scale=(" .. fmtV(try(function() return c:K2_GetComponentScale() end)) .. ") loc=(" .. fmtV(try(function() return c:K2_GetComponentLocation() end)) .. ")"
+                end
+                P(line)
+                if cn == "WaterStaticMeshComponent" or cn == "WaterSurfaceMeshComponent" then
+                    pcall(function()
+                        local n = c:GetNumMaterials()
+                        for i = 0, math.min(n, 3) - 1 do
+                            local m = c:GetMaterial(i)
+                            if isValid(m) then matParams(m, "REGION " .. nm .. " " .. cn .. "[" .. i .. "]") end
+                        end
+                    end)
+                end
+                if cn == "PostProcessComponent" then
+                    P(string.format("REGION %s PP %s", nm, rd(c, { "bEnabled", "bUnbound", "Priority", "BlendWeight", "BlendRadius" })))
+                end
+            else
+                P("REGION " .. nm .. " " .. cn .. " = nil")
+            end
+        end
+    end
+    local seenReg = {}
+    for _, a in ipairs(findAll("BP_UWEOceanBiomeRegionActor_C")) do
+        local n = nameOf(a)
+        if not seenReg[n] then seenReg[n] = true; regionInfo(a) end
+    end
+    local nWater = 0
+    for _, a in ipairs(findAll("BP_UWEWaterBiomeRegionActor_C")) do
+        nWater = nWater + 1
+        local n = nameOf(a)
+        if not seenReg[n] and not n:find("^BP_UWEOcean") and not n:find("^WaterVolumeComponent_") then
+            -- only the first plain water region (placed SN1 box) and any with "CAT" are dumped in full
+            if nWater <= 1 then seenReg[n] = true; regionInfo(a) end
+        end
+    end
+    P("REGION count water=" .. nWater)
+    -- 5. sky: time of day, weather, day sequence
+    for _, a in ipairs(findAll("BP_UWESky_C")) do
+        P("SKY " .. nameOf(a) .. " " .. rd(a, { "TimeOfDay", "NormalizedDaylight", "TransitionAlpha" }))
+        pcall(function() P("SKY SkyPayloads=" .. tostring(a.SkyPayloads:GetArrayNum()) .. " AllDaySequenceCollectionAssets=" .. tostring(a.AllDaySequenceCollectionAssets:GetArrayNum())) end)
+        pcall(function() P("SKY PostProcessComponentSky " .. rd(a.PostProcessComponentSky, { "bEnabled", "bUnbound", "Priority", "BlendWeight" }) .. " active=" .. call0(a.PostProcessComponentSky, "IsActive")) end)
+        pcall(function() P("SKY SunLightMaterialLightFunction=" .. str(a.SunLightMaterialLightFunction:GetFullName())) end)
+        pcall(function() matParams(a.SunLightMaterialLightFunction, "SKY SunLF") end)
+        pcall(function() P("SKY MoonLightMaterialLightFunction=" .. str(a.MoonLightMaterialLightFunction:GetFullName())) end)
+        pcall(function() P("SKY DaySequenceModifier " .. rd(a.DaySequenceModifierComponent, { "bEnabled", "bIsEnabled", "DayNightCycleTime", "bIgnoreBias", "BlendWeight", "Priority", "bHasActiveSequence" })) end)
+        pcall(function() local c = a.PrimaryCelestialBody:Get(); P("SKY PrimaryCelestialBody " .. rd(c, { "OrbitPeriodSeconds", "OrbitPhaseSeconds", "AxialRotationPeriodSeconds", "AxialTilt" })) end)
+    end
+    for _, c in ipairs(findAll("UWETimeOfDayComponent")) do
+        P("TIMEOFDAY " .. nameOf(c) .. " " .. rd(c, { "InitialNumGameDays", "WorldTimeAtInitialValue", "WorldTimeAtTimeFrozen", "DayLengthMinutes", "HourStartDawn", "HourStartDay", "HourStartDusk", "HourStartNight", "InitialHour" }))
+        P("TIMEOFDAY GetTimeOfDayFraction=" .. call0(c, "GetTimeOfDayFraction") .. " GetNormalizedDaylight=" .. call0(c, "GetNormalizedDaylight") .. " GetDayPhase=" .. call0(c, "GetDayPhase") .. " GetNumGameDays=" .. call0(c, "GetNumGameDays") .. " GetDayNumber=" .. call0(c, "GetDayNumber") .. " IsDay=" .. call0(c, "IsDay") .. " IsNight=" .. call0(c, "IsNight"))
+        pcall(function() local t = c:GetTimeOfDay(); P("TIMEOFDAY hour/min=" .. rd(t, { "Hour", "Minute" })) end)
+    end
+    for _, c in ipairs(findAll("UWEWeatherSyncComponent")) do
+        P("WEATHER " .. nameOf(c) .. " " .. rd(c, { "bWeatherWasLoaded", "CurrentForecastTime", "CurrentWeatherStartTime", "TimeToNextWeather", "TimeToStartTransition", "TransitionAlphaOverride", "NextForecastIndex", "TransitionAlpha", "PreviousTransitionAlpha" }))
+        for _, k in ipairs({ "WeatherForecast", "CurrentWeather", "NextWeather", "CurrentWeatherOverride", "NextWeatherOverride" }) do
+            pcall(function() local v = c[k]; P("WEATHER " .. k .. "=" .. (isValid(v) and str(v:GetFullName()) or "NULL")) end)
+        end
+        P("WEATHER GetIsWeatherEnabled=" .. call0(c, "GetIsWeatherEnabled"))
+    end
+    -- 6. lights
+    for _, l in ipairs(findAll("DirectionalLightComponent")) do
+        local own = "?"
+        pcall(function() own = l:GetOwner():GetFName():ToString() end)
+        P("DIRLIGHT " .. nameOf(l) .. " owner=" .. own .. " " .. rd(l, { "Intensity", "LightColor", "bUseTemperature", "Temperature", "IndirectLightingIntensity", "VolumetricScatteringIntensity", "bAtmosphereSunLight", "AtmosphereSunLightIndex", "CastShadows", "bAffectsWorld", "Mobility", "bUseRayTracedDistanceFieldShadows", "bEnableLightShaftOcclusion", "bEnableLightShaftBloom", "BloomScale", "bEnableLightFunctionOnLumen" }) .. " visible=" .. call0(l, "IsVisible") .. " rot=" .. f1(try(function() return l:K2_GetComponentRotation() end)))
+        pcall(function() P("DIRLIGHT " .. nameOf(l) .. " LightFunctionMaterial=" .. (isValid(l.LightFunctionMaterial) and str(l.LightFunctionMaterial:GetFullName()) or "NULL") .. " LightFunctionScale=" .. f1(l.LightFunctionScale) .. " DisabledBrightness=" .. f1(l.DisabledBrightness)) end)
+    end
+    for _, l in ipairs(findAll("SkyLightComponent")) do
+        local own = "?"
+        pcall(function() own = l:GetOwner():GetFName():ToString() end)
+        P("SKYLIGHT " .. nameOf(l) .. " owner=" .. own .. " " .. rd(l, { "Intensity", "LightColor", "SourceType", "bRealTimeCapture", "bLowerHemisphereIsBlack", "LowerHemisphereColor", "bAffectsWorld", "IndirectLightingIntensity", "VolumetricScatteringIntensity", "OcclusionExponent", "MinOcclusion", "Mobility" }) .. " visible=" .. call0(l, "IsVisible"))
+    end
+    for _, c in ipairs(findAll("SkyAtmosphereComponent")) do P("SKYATMOS " .. nameOf(c) .. " visible=" .. call0(c, "IsVisible") .. " " .. rd(c, { "TransformMode", "BottomRadius", "AtmosphereHeight", "AerialPespectiveViewDistanceScale", "HeightFogContribution", "AerialPerspectiveStartDepth", "bHoldout" })) end
+    for _, c in ipairs(findAll("VolumetricCloudComponent")) do P("VCLOUD " .. nameOf(c) .. " visible=" .. call0(c, "IsVisible") .. " " .. rd(c, { "LayerBottomAltitude", "LayerHeight", "ViewSampleCountScale", "bHoldout" })) end
+    for _, f in ipairs(findAll("ExponentialHeightFogComponent")) do
+        local own = "?"
+        pcall(function() own = f:GetOwner():GetFName():ToString() end)
+        P("FOG owner=" .. own .. " visible=" .. call0(f, "IsVisible") .. " active=" .. call0(f, "IsActive") .. " z=" .. f1(try(function() return f:K2_GetComponentLocation().Z end)))
+        P("FOG " .. rd(f, { "FogDensity", "FogHeightFalloff", "FogInscatteringLuminance", "SkyAtmosphereAmbientContributionColorScale", "FullyDirectionalInscatteringColorDistance", "NonDirectionalInscatteringColorDistance", "DirectionalInscatteringLuminance", "DirectionalInscatteringExponent", "DirectionalInscatteringStartDistance", "StartDistance", "FogCutoffDistance", "FogMaxOpacity" }))
+        P("FOG VOL " .. rd(f, { "bEnableVolumetricFog", "VolumetricFogScatteringDistribution", "VolumetricFogAlbedo", "VolumetricFogEmissive", "VolumetricFogExtinctionScale", "VolumetricFogDistance", "VolumetricFogStartDistance", "VolumetricFogNearFadeInDistance", "bHoldout", "bRenderInMainPass" }))
+        pcall(function() local d = f.SecondFogData; P("FOG SECOND " .. rd(d, { "FogDensity", "FogHeightFalloff", "FogHeightOffset" })) end)
+    end
+    -- 7. post process components / volumes: exposure and the unbound ones
+    local npc = 0
+    for _, c in ipairs(findAll("PostProcessComponent")) do
+        npc = npc + 1
+        local own = "?"
+        pcall(function() own = c:GetOwner():GetFName():ToString() end)
+        local isReg = own:find("^BP_UWEWaterBiomeRegionActor") ~= nil
+        local bw = tonumber(try(function() return c.BlendWeight end)) or 0
+        if (not isReg) or bw > 0 then
+            P(string.format("PPC %s owner=%s enabled=%s unbound=%s prio=%s blendw=%s blendr=%s", nameOf(c), own, f1(try(function() return c.bEnabled end)), f1(try(function() return c.bUnbound end)), f1(try(function() return c.Priority end)), f1(bw), f1(try(function() return c.BlendRadius end))))
+            pcall(function()
+                local s = c.Settings
+                P("PPC " .. nameOf(c) .. " EXPOSURE " .. rd(s, { "bOverride_AutoExposureBias", "AutoExposureBias", "bOverride_AutoExposureMinBrightness", "AutoExposureMinBrightness", "bOverride_AutoExposureMaxBrightness", "AutoExposureMaxBrightness", "bOverride_AutoExposureMethod", "AutoExposureMethod", "bOverride_SceneColorTint", "SceneColorTint", "bOverride_ColorGain", "ColorGain", "bOverride_BloomIntensity", "BloomIntensity" }))
+            end)
+        end
+    end
+    P("PPC count=" .. npc)
+    local nv, nub = 0, 0
+    for _, v in ipairs(findAll("PostProcessVolume")) do
+        nv = nv + 1
+        if try(function() return v.bUnbound end) == true then
+            nub = nub + 1
+            pcall(function() P("PPV unbound " .. nameOf(v) .. " prio=" .. f1(v.Priority) .. " blendw=" .. f1(v.BlendWeight) .. " enabled=" .. f1(v.bEnabled) .. " EXPOSURE " .. rd(v.Settings, { "bOverride_AutoExposureBias", "AutoExposureBias", "bOverride_AutoExposureMinBrightness", "AutoExposureMinBrightness", "bOverride_AutoExposureMaxBrightness", "AutoExposureMaxBrightness" })) end)
+        end
+    end
+    P("PPV count=" .. nv .. " unbound=" .. nub)
+    -- 8. pawn camera POV post process (what the player camera actually carries)
+    pcall(function() P("CAMMGR " .. rd(pc.PlayerCameraManager, { "ViewTarget" }) .. " fov=" .. call0(pc.PlayerCameraManager, "GetFOVAngle")) end)
+    return true, "uwprobe done"
+end
 -- DIAGNOSTIC (engine mode only, exploration): run run\<FILE>.lua in the game thread with the mod helpers in scope; its return value is logged.
 -- Lets an input-injection experiment be changed without relaunching the game (UE4SS reads the mod Lua only at launch).
 -- ---------------------------------------------------------------- story goal verbs + terrain census (test-only, 2026-11-23, vanish_proof)
@@ -1212,6 +1554,33 @@ function verbs.exec(args)
     if setfenv then setfenv(chunk, env) else debug.setupvalue(chunk, 1, env) end
     local ok, res = pcall(chunk)
     return ok, shortErr(res)
+end
+-- Diagnostic verbs uwa1 (effective MID values per region) and uwa21 (tracker/region table: idx, volType, order), kept 2026-11-27; each runs data/uwaN.lua of this mod with the local helpers in scope
+-- (cmdAfter in a plan has no args; run/ is wiped by autotest.sh).
+for _, n in ipairs({ "uwa1", "uwa21" }) do
+    verbs[n] = function()
+        local chunk, err = loadfile(MOD_DIR .. "\\data\\uwa.lua")
+        if not chunk then return false, shortErr(err) end
+        local env = setmetatable({ log = log, getPC = getPC, getPawn = getPawn, findAll = findAll, nameOf = nameOf, isValid = isValid, str = str, try = try,
+            toList = toList, fmtV = fmtV, after = after, verbs = verbs, MODE = n }, { __index = _G })
+        debug.setupvalue(chunk, 1, env)
+        local ok, res = pcall(chunk)
+        log("UWA " .. n .. " ok=" .. tostring(ok) .. " " .. tostring(res))
+        return ok, shortErr(res)
+    end
+end
+-- TEMPORARY (2026-11-28, investigator-lum): lum_* verbs run data/lum.lua (lines LUM ...): exposure readout + in-memory exposure A/B. Delete with data/lum.lua when the investigation ends.
+for _, n in ipairs({ "lum_read", "lum_bias", "lum_bias_hi", "lum_unclamp", "lum_nocurve", "lum_b15", "lum_b20", "lum_b25", "lum_b30" }) do
+    verbs[n] = function()
+        local chunk, err = loadfile(MOD_DIR .. "\\data\\lum.lua")
+        if not chunk then return false, shortErr(err) end
+        local env = setmetatable({ log = log, getPC = getPC, getPawn = getPawn, findAll = findAll, nameOf = nameOf, isValid = isValid, str = str, try = try,
+            toList = toList, fmtV = fmtV, after = after, verbs = verbs, MODE = n }, { __index = _G })
+        debug.setupvalue(chunk, 1, env)
+        local ok, res = pcall(chunk)
+        log("LUM " .. n .. " ok=" .. tostring(ok) .. " " .. tostring(res))
+        return ok, shortErr(res)
+    end
 end
 -- Base-building diagnostic (2026-11-28): verb 'buildprobe MODE [args]' runs data/buildprobe.lua (lines BPROBE ...).
 function verbs.buildprobe(args)
@@ -1556,28 +1925,6 @@ if ENGINE then
         return false
     end)
     log("ENGINE input mode armed: polling " .. CMD_FILE .. " every 100 ms")
-end
-
--- DIAGNOSTIC (2026-11-26, brownwater): plan.autoPioneer = true clicks through the stock L_Main character select ("Select pioneer to print")
--- that the menu chain does not know. Test-only; remove when the menu chain handles the screen.
-if ENGINE and plan.name == "brownwater_lmain" then   -- (harness arm() passes only whitelisted plan keys)
-    local stage, ticks = 0, 0
-    LoopAsync(1500, function()
-        ticks = ticks + 1
-        ExecuteInGameThread(function()
-            pcall(function()
-                if stage == 0 then
-                    local ok, d = verbs.click("auto name:WBP_CharacterSelectButton_0")
-                    if ok then stage = 1; log("AUTOPIONEER select " .. tostring(d)) elseif ticks % 10 == 1 then log("AUTOPIONEER wait " .. tostring(d)) end
-                elseif stage == 1 then
-                    local ok, d = verbs.click("auto name:Play@CharacterSelect")
-                    log("AUTOPIONEER confirm ok=" .. tostring(ok) .. " " .. tostring(d))
-                    if ok then stage = 2 end
-                end
-            end)
-        end)
-        return stage >= 2 or ticks > 400
-    end)
 end
 
 -- Q2 monitor (hidden-desktop investigation 2026-11-22, passive): while run\q2.txt exists, log every 500 ms

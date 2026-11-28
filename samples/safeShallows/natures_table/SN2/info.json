@@ -3,12 +3,12 @@
  "shot": "natures_table",
  "biome": "safeShallows",
  "image": "shot.png",
- "capture_time_utc": "2026-11-26T10:07:43Z",
- "capture_time_local": "2026-11-26T18:07:43+08:00",
+ "capture_time_utc": "2026-11-28T08:26:21Z",
+ "capture_time_local": "2026-11-28T16:26:21+08:00",
  "world": "L_SN2World",
  "game_build": "131439 2026-09-18T20:24:32",
- "run": "<Workspace>/autotest/20261126_180611_sn1cmp_shallows_env",
- "plan": "sn1cmp_shallows_env",
+ "run": "<Workspace>/autotest/20261128_162423_samples",
+ "plan": "samples",
  "target": {
   "name": "natures_table",
   "at": [
@@ -31,14 +31,28 @@
   "camera": [
    8376.0,
    -14108.0,
-   -1150.8
+   -1150.7
   ],
-  "yaw": 154.48,
-  "pitch": 4.34
+  "yaw": 154.4,
+  "pitch": 4.1
  },
  "image_size": [
   1920,
   1080
  ],
+ "terrain_check": {
+  "loaded": true,
+  "tiles": 32,
+  "tiles_visible": 32,
+  "trace_down_40m": {
+   "hit": true,
+   "owner": "StaticMeshActor_18",
+   "component": "StaticMeshComponent /Game/Mods/SN2EmptyWorld/L_SN2World.L_SN2World:PersistentLevel.StaticMeshActor_18.StaticMeshComponent0",
+   "impact": "8376,-14108,-1610",
+   "dist_cm": 459.2
+  },
+  "trace_tile": "SM_origin_tile_0_2",
+  "shader_text": "PrecacheRequestsLabel|Compiling Initial Shaders..."
+ },
  "notes": ""
 }
