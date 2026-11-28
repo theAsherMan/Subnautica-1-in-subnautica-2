@@ -1,0 +1,21 @@
+{
+ "name": "buildprobe_udata",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "uw", "offset": [1500, 0, -300], "views": "script", "steps": [
+   {"cmd": "o2fill", "args": "", "wait": 1},
+   {"cmd": "look", "args": "0 -45", "wait": 3},
+   {"cmd": "buildprobe", "args": "udata none", "wait": 1},
+   {"cmd": "buildprobe", "args": "give", "wait": 4},
+   {"cmd": "buildprobe", "args": "place DA_Corridor_ItemBrushData", "wait": 4},
+   {"shot": "before"},
+   {"cmd": "buildprobe", "args": "udata sand", "wait": 3},
+   {"cmd": "o2fill", "args": "", "wait": 2},
+   {"shot": "after_sand"},
+   {"cmd": "buildprobe", "args": "ghost", "wait": 1}
+  ]}
+ ],
+ "settleSeconds": 15,
+ "_note": "2026-11-28 base-building investigation, step 3: in-memory UWEAssetUserData(DataAssets=[DA_SandSurfaceData]) on the SN1 terrain meshes; shot before (red 'Cannot find valid support surface' expected) and after (non-red ghost expected)."
+}

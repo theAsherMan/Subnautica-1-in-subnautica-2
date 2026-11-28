@@ -21,6 +21,15 @@ import os
 import re
 import time
 import unreal
+import sys
+
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+except NameError:
+    pass
+import importlib
+import sn1terrain_udata as U  # noqa: E402
+importlib.reload(U)  # the editor keeps imported modules between runs
 
 MAP = "/Game/Mods/SN2EmptyWorld/L_SN2World"
 ASSET_DIR = "/Game/Mods/SN2EmptyWorld/SN1Terrain"
@@ -222,6 +231,7 @@ for (ti, tk, path) in files:
     if not mesh:
         die(f"{asset_path} not created ({out})")
     mesh.set_material(0, mat)
+    log("  ground user data: " + U.add_ground_udata(mesh))   # Habitat Builder ground surface (research/04)
     bs = mesh.get_editor_property("body_setup")
     if bs:
         setp(bs, "collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)

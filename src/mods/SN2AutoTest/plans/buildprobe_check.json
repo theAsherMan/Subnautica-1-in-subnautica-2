@@ -1,0 +1,22 @@
+{
+ "name": "buildprobe_check",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "uw", "offset": [1500, 0, -300], "views": "script", "steps": [
+   {"cmd": "o2fill", "args": "", "wait": 1},
+   {"cmd": "buildprobe", "args": "eow", "wait": 1},
+   {"cmd": "look", "args": "0 -45", "wait": 3},
+   {"cmd": "buildprobe", "args": "ground", "wait": 1},
+   {"cmd": "buildprobe", "args": "give", "wait": 4},
+   {"shot": "given"},
+   {"cmd": "buildprobe", "args": "place DA_Corridor_ItemBrushData", "wait": 4},
+   {"cmd": "buildprobe", "args": "ghost", "wait": 1},
+   {"shot": "ghost"},
+   {"cmd": "o2fill", "args": "", "wait": 1},
+   {"cmd": "buildprobe", "args": "eow", "wait": 1}
+  ]}
+ ],
+ "settleSeconds": 15,
+ "_note": "2026-11-28 base-building investigation, step 2: underwater 15 m from the pod (L_SN2World): edge-of-world / out-of-bounds state, ground-surface test of the SN1 terrain, then builder given (in memory) + corridor ghost activated; read ghost + construct trace; shots show the HUD reason. Pair: buildprobe_check_lmain."
+}

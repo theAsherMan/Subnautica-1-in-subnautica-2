@@ -1213,6 +1213,17 @@ function verbs.exec(args)
     local ok, res = pcall(chunk)
     return ok, shortErr(res)
 end
+-- Base-building diagnostic (2026-11-28): verb 'buildprobe MODE [args]' runs data/buildprobe.lua (lines BPROBE ...).
+function verbs.buildprobe(args)
+    local chunk, err = loadfile(MOD_DIR .. "\\data\\buildprobe.lua")
+    if not chunk then return false, shortErr(err) end
+    local env = setmetatable({ log = log, getPC = getPC, getPawn = getPawn, findAll = findAll, nameOf = nameOf, isValid = isValid, str = str, try = try,
+        toList = toList, fmtV = fmtV, after = after, verbs = verbs, MOD_DIR = MOD_DIR, ARGS = args or "" }, { __index = _G })
+    debug.setupvalue(chunk, 1, env)
+    local ok, a, b = pcall(chunk)
+    if not ok then log("BPROBE ERROR " .. tostring(a)) end
+    return ok and a ~= false, shortErr(ok and (b or a) or a)
+end
 -- TEST TRIGGER ONLY: runs the SN2Tadpole spawn logic (same code as its F4 key); result lines are logged by SN2Tadpole as [SN2Tadpole] ...
 function verbs.tadpole()
     local chunk, err = loadfile(MOD_DIR .. "\\..\\SN2Tadpole\\Scripts\\tadpole_spawn.lua")

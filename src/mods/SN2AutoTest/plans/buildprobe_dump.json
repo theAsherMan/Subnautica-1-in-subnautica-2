@@ -1,0 +1,13 @@
+{
+ "name": "buildprobe_dump",
+ "worldLevel": null,
+ "start": "new",
+ "waypoints": [
+  {"name": "pod", "views": "script", "steps": [
+   {"cmd": "buildprobe", "args": "dump", "wait": 3},
+   {"shot": "pod"}
+  ]}
+ ],
+ "settleSeconds": 15,
+ "_note": "2026-11-28 base-building investigation, step 1: reflection dump of the builder / placement / bounds classes + live placement objects in L_SN2World (BPROBE lines in UE4SS.log)."
+}

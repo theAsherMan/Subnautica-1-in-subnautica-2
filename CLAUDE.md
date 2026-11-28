@@ -35,7 +35,8 @@ RAM allows only one of these at a time: the game, the modkit editor, a cook, Sub
 - Check `heavy_lock.sh status` before planning heavy work.
 - Static analysis (`static_analysis.sh`) is not a heavy job: it only reads, never takes the lock, and may run while another session holds it.
 - launch_game / install_mod / launch_editor / ue_run / cook_install / autotest take or require the lock themselves, and refuse with exit 4, 5 or 2 when another session holds it.
-- To wait for the lock, run `heavy_lock.sh acquire <what> --wait <s>` in the background. Do not poll.
+- To wait for the lock, run `heavy_lock.sh acquire <what> --wait <s>` in the background. Do not poll. Waiters are served in order (FIFO).
+- The lock is a lease: a holder that neither runs a heavy process nor renews (any `acquire`/`check`/`renew`) for 10 min is freed; a dead owner process is freed at once. For a long gap or a non-heavy job (Python extractor) run `heavy_lock.sh hold` in the background.
 - When done: close what you started (game or editor), then run `heavy_lock.sh release`. Never `release --force` another session's lock unless the user says so.
 - Install your mods right before you launch: the game folder is shared between sessions. Details: `research/01_runbook.md` "Parallel sessions".
 
