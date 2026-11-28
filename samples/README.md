@@ -32,7 +32,7 @@ Tool: `src/tools/samples.py` (`list`, `plan`, `import`, `analyze`; run `python -
 
 ## Procedure: "use the samples"
 
-0. Read `research/00_overview.md` and `research/01_runbook.md` first, as for any task. Check `bash src/tools/heavy_lock.sh status`. The SN2 run is a
+0. Read `research/status.md` and `research/process/README.md` first, as for any task. Check `bash src/tools/heavy_lock.sh status`. The SN2 run is a
    heavy job: if another session holds the lock, wait with `bash src/tools/heavy_lock.sh acquire game --wait 3600 --note samples` in the
    background (do not poll). Never `release --force`.
 1. `python -I src/tools/samples.py list` shows every sample and when each side was captured. Use all samples unless the user names a
@@ -63,7 +63,7 @@ Tool: `src/tools/samples.py` (`list`, `plan`, `import`, `analyze`; run `python -
    `WaterLightSettings`). Add anything relevant to the analysis.
 8. Record the result in `research/` in the same turn, as text only. Never put images or image links in `research/`. Describe what the
    shots show, with the status word and date, e.g. **VERIFIED (2026-11-26, samples run `<Workspace>/autotest/<ts>_samples`)**. The water
-   look goes in `research/10_sn1_world_data.md` §6. Update the "State of play" row in `research/00_overview.md` if the result changed.
+   look goes in `research/features/biome_look.md` §6. Update the "State of play" row in `research/status.md` if the result changed.
 9. Report to the user: one line per shot with the verdict, what changed since the last analysis, and the run id. Commit only if asked.
 
 ## analysis.md template
@@ -128,7 +128,7 @@ The SN1 water settings of every biome can be dumped with `python src/tools/sn1_l
     visible), `trace_down_40m` (hit, owner actor, impact, distance cm), `trace_tile` (mesh name of the tile hit), `shader_text` (HUD
     "Loading Shaders" text), `why` when not loaded.
 
-SN1 to SN2 mapping, with map offset 0 (`research/10_sn1_world_data.md` §3):
+SN1 to SN2 mapping, with map offset 0 (`research/sn1/world_files.md` §3):
 - UE.X = 100 × Unity z, UE.Y = 100 × Unity x, UE.Z = 100 × Unity y.
 - Yaw: the same number, wrapped to -180..180.
 - Pitch: positive is up in both games.

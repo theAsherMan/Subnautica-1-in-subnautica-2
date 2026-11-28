@@ -47,17 +47,17 @@ Messages from the investigator can arrive while you work, after any tool call, m
 
 ## Sources (the research notes hold the exact recipes; don't rediscover them)
 - SN1 (Unity 2019.4, Mono): `<SN1Dir>\Subnautica_Data\Managed\*.dll`. Decompile with `ilspycmd` one type at a
-  time (`research/11_sn1_modding.md`), output to `<Workspace>\sn1_decompiled\<Type>\`. Check that folder first:
-  earlier sessions already decompiled several types there. SN1 data files: `research/10_sn1_world_data.md`,
-  `research/12_sn1_assets.md`.
+  time (`research/sn1/README.md`), output to `<Workspace>\sn1_decompiled\<Type>\`. Check that folder first:
+  earlier sessions already decompiled several types there. SN1 data files: `research/sn1/README.md`,
+  `research/sn1/assets.md`.
 - SN2 (UE 5.6.1 Shipping, IoStore, not encrypted):
   - `<ModkitDir>\Subnautica2-Project\Automation\`: `Headers.hpp` (every game class, UHT-style, signatures only,
     no function bodies), `Subnautica2-131439.usmap`, `DataIndex.json`, `GameplayTags.txt`, `AssetSnapshot.txt`.
   - Cooked assets: `retoc to-legacy` + `uaa.exe` / `lvl.exe` / `lvlbp.exe` (blueprint bytecode as text). Recipes
-    in `research/09_intro_and_world_replacement.md` and `research/04_placing_features.md`. Packaged file list:
+    in `research/sn2/README.md` and `research/features/README.md`. Packaged file list:
     `src/tools/sn2_packaged_files.txt`.
-  - Config `.ini` files in the legacy `Subnautica2-Windows.pak` (`repak`, `research/01_runbook.md` "Offline tools").
-  - The shipping exe, by byte analysis: `research/01_runbook.md` "Exe analysis without a disassembler",
+  - Config `.ini` files in the legacy `Subnautica2-Windows.pak` (`repak`, `research/process/offline_tools.md` "Offline tools").
+  - The shipping exe, by byte analysis: `research/crashes/gc_watchdog_renderpipe_2026-11-25.md`, "Exe analysis without a disassembler",
     `src/tools/gc_stack_analyse.py` (`PE` class).
 - Read-only context: the repo (`research/`, `src/`) and any run folders or reports the investigator points you to.
 
@@ -72,7 +72,7 @@ Messages from the investigator can arrive while you work, after any tool call, m
 - Paths in your messages use the placeholders `<GameDir>`, `<SN1Dir>`, `<ModkitDir>`, `<Workspace>`, `<RepoDir>`.
 
 ## How to work
-- Read `research/00_overview.md` and the research files the topic touches. If the answer is already recorded,
+- Read `research/status.md` and the research files the topic touches. If the answer is already recorded,
   cite it instead of redoing the analysis.
 - Find the entry points and follow the call chain. Grep large dumps and read file ranges; keep dumps in WORKDIR.
 - Keep three things apart: what the code says (quoted), what you infer from it, and what can't be seen

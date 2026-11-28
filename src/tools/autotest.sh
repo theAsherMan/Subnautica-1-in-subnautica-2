@@ -95,7 +95,7 @@ rm -rf "$RUN"; mkdir -p "$RUN"
 python "$TOOLS/autotest_driver.py" arm "$(cygpath -w "$PLANFILE")" "$(cygpath -w "$RUN")" || { echo "arm failed"; exit 2; }
 rm -f "$UE4LOG" 2>/dev/null
 
-# watchdog marks of the game (research/01 "Start-up hang"): record presence + mtime before launch
+# watchdog marks of the game (research/process/autotest_startup.md "Start-up hang"): record presence + mtime before launch
 {
   for f in running.dat beforelobby.dat; do
     if [ -f "$LOCAL/$f" ]; then echo "$f: present, modified $(date -r "$LOCAL/$f" '+%Y-%m-%d %H:%M:%S')"; else echo "$f: absent"; fi
@@ -111,13 +111,13 @@ kill_driver() {
 force_kill() {
   if tasklist 2>/dev/null | grep -qi "Subnautica2-Win64"; then
     echo "FORCED_KILL $1" >> "$OUT/forced_kill.txt"
-    # research/01 rule 2026-11-19: explain the stall before killing (full-desktop screenshot without focusing the game + all game windows)
+    # research/process/README.md rule 2026-11-19: explain the stall before killing (full-desktop screenshot without focusing the game + all game windows)
     python "$TOOLS/autotest_driver.py" windows forced_kill "$(cygpath -w "$OUT")" >> "$OUT/forced_kill_windows.log" 2>&1
     taskkill //IM Subnautica2-Win64-Shipping.exe //F >/dev/null 2>&1
   fi
 }
 MARK="$OUT/.launchmark"; : > "$MARK"
-machine_snap() {   # machine snapshot into $OUT/machine.txt (research/01): RAM, top processes, editor/zen/shader workers/Defender
+machine_snap() {   # machine snapshot into $OUT/machine.txt (research/process/README.md): RAM, top processes, editor/zen/shader workers/Defender
   { echo "=== machine snapshot: $1 ==="; powershell -NoProfile -Command "Get-Content -Raw '$(cygpath -w "$TOOLS/machine_snapshot.ps1")' | Invoke-Expression" 2>&1 | tr -d '\r'; echo; } >> "$OUT/machine.txt"
 }
 machine_snap "at launch"
@@ -129,7 +129,7 @@ export SN2_AUTOTEST_OUT="$(cygpath -w "$OUT")"
 export SN2_RUN_DIR="$(cygpath -w "$RUN")"
 echo "$SN2_RUN_DIR" > "$OUT/run_dir.txt"
 if [ "${SN2_HIDDEN:-0}" = 1 ]; then
-  # DEFAULT (research/01 "Hidden desktop"): start the Shipping exe directly on the hidden desktop SN2Test (Steam client must be running, checked in the precheck; no -applaunch)
+  # DEFAULT (research/process/autotest.md "Hidden desktop is the default"): start the Shipping exe directly on the hidden desktop SN2Test (Steam client must be running, checked in the precheck; no -applaunch)
   export SN2_HIDDEN_DESKTOP=1 SN2_FOCUSGUARD=0
   # the holder process keeps the desktop handle open for the whole run (background; it exits when the game exits)
   python -u "$TOOLS/hidden_desktop.py" launch "$(cygpath -w "$SN2_GAME_DIR/Subnautica2/Binaries/Win64/Subnautica2-Win64-Shipping.exe")" ${SN2_START:+-OverridePlayerStart=$SN2_START} -windowed -ResX=1920 -ResY=1080 -WinX=0 -WinY=0 > "$OUT/hidden_holder.log" 2>&1 &   # SN2_START=<Tag> (opt-in, diagnostics only, 2026-11-27): stock L_Main's default Deep start crashes, use Shallows
@@ -203,7 +203,7 @@ for d in $(ls "$CRASHDIR" 2>/dev/null | sort | comm -13 "$OUT/.crashes_before" -
 for f in $(ls "$SN2_UE4SS_DIR"/crash_*.dmp 2>/dev/null | sort | comm -13 "$OUT/.dmp_before" -); do cp "$f" "$OUT/crash/" 2>/dev/null; done
 
 taskkill //IM CrashReportClient.exe //F >/dev/null 2>&1
-# crash classification (research/01): a new dump in the crash folders, or a fatal marker in the game log, makes the verdict CRASH
+# crash classification (research/process/README.md): a new dump in the crash folders, or a fatal marker in the game log, makes the verdict CRASH
 # whatever the driver said (a crash during a map load leaves the process alive with no window and used to read as FAIL_MENU)
 CRASH_WHY=""; RESULT_WAS=""
 case "$RESULT" in DONE|STOPPED) ;; *)

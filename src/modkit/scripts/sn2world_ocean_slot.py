@@ -1,4 +1,4 @@
-"""Runs INSIDE the Unreal editor. Fixes the water volume in L_SN2World at source (research/10 'region water volume'):
+"""Runs INSIDE the Unreal editor. Fixes the water volume in L_SN2World at source (research/sn2/l_sn2world_water.md "region water volume"):
   1. BP_Ocean_C_0.WaterVolumeComponent (ChildActorComponent): ChildActorClass = None, so the zero-size child region CAT_0 no longer spawns
      and no longer owns the biome tracker's slot 15.
   2. standalone BP_UWEOceanBiomeRegionActor_C_1: BiomeRegionVolumeType = BRVT_Shape through T3D text. DOES NOT PERSIST (2026-11-27: Shape equals the editor stub default, so it is never serialized; the game reads Brush). The volume type is set at runtime by the SN2EmptyWorld ModActor graph (sn2emptyworld_graph.py). Only step 1 (child_actor_class=None) is load-bearing.

@@ -1,4 +1,4 @@
--- SN2Census — read-only measurement mod for the SN2EmptyWorld test (see research/09 "Empty world").
+-- SN2Census — read-only measurement mod for the SN2EmptyWorld test (see research/sn2/l_sn2world_map.md "Empty world").
 -- It never destroys, hides or changes anything. No hotkeys (removed 2026-11-23; recover with git show 40820f3).
 --
 --   No hotkeys (samples run on a timer; report file at t=15 s).

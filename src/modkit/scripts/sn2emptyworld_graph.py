@@ -1,5 +1,5 @@
 """Runs INSIDE the Unreal editor. Creates the SN2EmptyWorld mod scaffold (ModActor + PAL, chunk 2) and builds its event graph
-with the SN2GraphTools plugin (unreal.SN2GraphLibrary). Design: research/09_intro_and_world_replacement.md -> "Empty world".
+with the SN2GraphTools plugin (unreal.SN2GraphLibrary). Design: research/sn2/l_sn2world_map.md "Empty world".
 
 Generated behaviour:
   BeginPlay: read + set cvar wp.Runtime.UpdateStreamingSources 0 (value read back into public vars; wp.Runtime.HLOD does not exist in this build);
@@ -351,7 +351,7 @@ try:
     b2 = branch(is_new, "ReturnValue")
     link(b1, "else", b2, "execute")
     # The editor's stub class default for BiomeRegionVolumeType is Shape, the game's real default is Brush, so a Shape saved in the map is never
-    # serialized (research/10). Set it on the saved ocean region(s) here, then destroy self.
+    # serialized (research/sn1/README.md). Set it on the saved ocean region(s) here, then destroy self.
     OCEAN = _cls("/Game/Blueprints/World/Water/BP_UWEOceanBiomeRegionActor.BP_UWEOceanBiomeRegionActor_C")
     gao = call(GS, "GetAllActorsOfClass")
     L.set_pin_default_object(gao, "ActorClass", OCEAN)

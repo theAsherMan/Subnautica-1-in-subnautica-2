@@ -1,6 +1,6 @@
 # safeShallows/shallow_ravine - analysis 2026-11-28
 
-SN2 shot run `<Workspace>/autotest/20261128_162423_samples`, world L_SN2World, build 131439; calibration iteration 5 (research/10 section 6c). SN2 terrain: loaded.
+SN2 shot run `<Workspace>/autotest/20261128_162423_samples`, world L_SN2World, build 131439; calibration iteration 5 (research/features/biome_look.md §6c). SN2 terrain: loaded.
 
 | Metric | SN1 | SN2 |
 |---|---|---|

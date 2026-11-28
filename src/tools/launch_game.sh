@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch Subnautica 2 the way the Steam "Play" button does: steam.exe -applaunch 1962700 <args>. Steam is started minimized if needed (ensure_steam).
-# No gameplay args by default (new games start through the map's own start rules, research/09). Only display args are passed by autotest.sh
+# No gameplay args by default (new games start through the map's own start rules, research/sn2/README.md). Only display args are passed by autotest.sh
 # (-windowed -ResX=1920 -ResY=1080 -WinX=0 -WinY=0).
 # Usage: bash src/tools/launch_game.sh [extra game args...]
 #   Opt-in start override for manual use only: SN2_START=<Tag> bash src/tools/launch_game.sh   (adds -OverridePlayerStart=<Tag>; unset/none = nothing added)

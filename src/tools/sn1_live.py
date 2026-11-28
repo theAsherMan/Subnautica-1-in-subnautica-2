@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Talk to a Subnautica 1 session the USER started (SN1Inspector command files). See research/11_sn1_modding.md.
+"""Talk to a Subnautica 1 session the USER started (SN1Inspector command files). See research/sn1/README.md.
 
   python src/tools/sn1_live.py status
   python src/tools/sn1_live.py cmd <verb> [args...]          # any SN1Inspector verb, prints the reply
@@ -10,7 +10,7 @@ Does NOT take the heavy lock and never launches or quits SN1: the user's own SN1
 Refuses (exit 3) when Subnautica.exe is not running. Every reply wait has a timeout (--wait, default 30 s).
 Outputs: capture -> repo samples/<biome>/<name>/SN1/{shot.png, info.json} + samples/<biome>/<name>/SN2/plan.json (autotest plan, views "fixed");
 <biome> = SN1's biome at the camera unless --biome is given (procedure: samples/README.md). waterbiomes -> <Workspace>/sn1_shots/<name>.json.
-SN1 -> SN2 mapping (map offset 0, research/10 §3): UE.X = 100 z, UE.Y = 100 x, UE.Z = 100 y; UE yaw = Unity yaw (both clockwise from
+SN1 -> SN2 mapping (map offset 0, research/sn1/world_files.md §3): UE.X = 100 z, UE.Y = 100 x, UE.Z = 100 y; UE yaw = Unity yaw (both clockwise from
 above, 0 = Unity +z = UE +X); pitch + = up in both. The plan's "at" is the pawn position: the SN1 player position, not the camera.
 """
 import datetime, json, os, shutil, subprocess, sys, time

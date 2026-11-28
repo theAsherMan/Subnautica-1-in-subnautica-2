@@ -1,6 +1,6 @@
 """Shared helper (imported by sn1terrain_import.py and sn1terrain_ground_udata.py; runs INSIDE the editor).
 Makes a StaticMesh count as a buildable ground surface for the Habitat Builder: its AssetUserData must hold a
-/Script/UWEAssetRegistry.UWEAssetUserData whose DataAssets contains a UWESurfaceSpawnData with a ground tag (research/04, base building section).
+/Script/UWEAssetRegistry.UWEAssetUserData whose DataAssets contains a UWESurfaceSpawnData with a ground tag (research/features/README.md, base building section).
 """
 import unreal
 

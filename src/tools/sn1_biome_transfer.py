@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SN1 biome -> SN2 biome-region plan (offline, no game, no lock). See research/10 §6 and research/04 "Water colour / fog per area".
+"""SN1 biome -> SN2 biome-region plan (offline, no game, no lock). See research/features/biome_look.md §6 and research/features/biome_look.md "Water colour / fog per area".
 
   python -I src/tools/sn1_biome_transfer.py safeShallows [--cell 32] [--overlap 10] [--min-px 100] [--y-top 5] [--y-bottom -200]
                                             [--settings <waterbiomes dump json>] [--out <Workspace>/sn1_biomes/<biome>.json]
@@ -21,7 +21,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 
-# L_Main ocean region WaterLightSettings (cooked L_Main, research/09): SN2's own "clear blue ocean" = the calibration anchor.
+# L_Main ocean region WaterLightSettings (cooked L_Main, research/sn2/README.md): SN2's own "clear blue ocean" = the calibration anchor.
 LMAIN_EXT_DIR = (0.9072499871253967, 0.9451580047607422, 0.9549999833106995)
 LMAIN_EXT_SKY = (0.6000000238418579, 0.7607219815254211, 0.800000011920929)
 LMAIN_FOG_CM = 7500.0

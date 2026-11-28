@@ -40,7 +40,7 @@ ensure_steam() {
 # precheck <plan> <timeout|""> <reason> <after_fix> <hidden 0|1>   -> exits (not returns) with the refusal code
 autotest_precheck() {
   local plan="$1" to="$2" reason="$3" fix="$4" hidden="$5"
-  case "$to" in ''|*[!0-9]*|0) echo "REFUSED: every test needs --timeout <seconds> (whole run, launch to game exit); no default exists. See research/01_runbook.md 'Test timeouts'."; exit 8;; esac
+  case "$to" in ''|*[!0-9]*|0) echo "REFUSED: every test needs --timeout <seconds> (whole run, launch to game exit); no default exists. See research/process/autotest.md 'Hidden desktop is the default; mandatory test timeouts'."; exit 8;; esac
   if [ -f "$TIMEOUTS_TSV" ]; then
     # last two rows of this plan: columns datetime, plan, timeout_s, verdict, ...
     local rows last_v last_t prev_v

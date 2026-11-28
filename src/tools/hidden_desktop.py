@@ -192,7 +192,7 @@ def main():
     if a[0] == "launch":
         _appid = os.environ.get("HD_APPID", "1962700"); os.environ["SteamAppId"] = _appid; os.environ["SteamGameId"] = _appid   # needed for a direct launch (git b949409)
         # HOLDER: this process owns the desktop handle and must stay alive until the game exits. Exiting right after CreateProcess
-        # destroyed the desktop before the game's user32 attached (run 20261122_132101: game never ran). (see research/01).
+        # destroyed the desktop before the game's user32 attached (run 20261122_132101: game never ran). (see research/process/README.md).
         h = create_desktop(); pid, hp = launch_on_desktop(a[1:])
         print("pid", pid, flush=True)
         k32.WaitForSingleObject.argtypes = [wt.HANDLE, wt.DWORD]

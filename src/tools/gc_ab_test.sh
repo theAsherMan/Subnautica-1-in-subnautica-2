@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# UE4SS on/off A/B for the lobby -> L_SN2World GC-watchdog crash (research/01 "GC-watchdog analysis", "Consequence for the UE4SS on/off A/B").
+# UE4SS on/off A/B for the lobby -> L_SN2World GC-watchdog crash (research/crashes/gc_watchdog_logs_2026-11-23.md, "GC-watchdog analysis", "Consequence for the UE4SS on/off A/B").
 # N runs, arms alternate ON, OFF, ON, OFF ... (ON = UE4SS loaded, OFF = <Win64>\dwmapi.dll renamed to dwmapi.dll.gcab_off). Per run:
 #   1. cache flush: schtasks /run /tn SN2_FlushStandby (RAMMap64 -Et, admin through the pre-made task), waits until the task is no longer running
 #   2. OFF only: rename dwmapi.dll   3. install the Lua mods (as autotest.sh does)   4. launch (visible, OS input), Lua-free driver gc_ab_driver.py:
@@ -68,7 +68,7 @@ kill_driver() {
   powershell -NoProfile -c "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { \$_.CommandLine -match 'gc_ab_driver\.py run' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" >/dev/null 2>&1
   return 0
 }
-force_kill() {   # $1 = why; logged FORCED_KILL (research/01 rule: windows artefact first)
+force_kill() {   # $1 = why; logged FORCED_KILL (research/process/README.md rule: windows artefact first)
   if game_up; then
     echo "FORCED_KILL $1" >> "$OUT/forced_kill.txt"
     SN2_INPUT=os python "$TOOLS/autotest_driver.py" windows forced_kill "$(cygpath -w "$OUT")" >> "$OUT/forced_kill_windows.log" 2>&1
@@ -109,7 +109,7 @@ if ! bash "$HL" status | grep -q 'verdict: FREE'; then bash "$HL" status
   if [ "$DRY" = 1 ]; then say "[dry-run] WARNING: heavy lock not free - a real run would abort here"; else echo "heavy lock not free - abort"; DONE_CLEAN=1; exit 4; fi; fi
 if game_up; then
   if [ "$DRY" = 1 ]; then say "[dry-run] WARNING: Subnautica2-Win64-Shipping.exe is running - a real run would abort here"; else echo "Subnautica2-Win64-Shipping.exe is running - abort"; DONE_CLEAN=1; exit 2; fi; fi
-MSYS_NO_PATHCONV=1 schtasks /query /tn SN2_FlushStandby >/dev/null 2>&1 || { echo "scheduled task SN2_FlushStandby not found (research/01 cold-cache recipe) - abort"; DONE_CLEAN=1; exit 2; }
+MSYS_NO_PATHCONV=1 schtasks /query /tn SN2_FlushStandby >/dev/null 2>&1 || { echo "scheduled task SN2_FlushStandby not found (research/process/README.md cold-cache recipe) - abort"; DONE_CLEAN=1; exit 2; }
 if [ "$DRY" != 1 ]; then
   bash "$HL" acquire gc_ab --wait 0 --note "gc_ab_test $RUNS runs" || { echo "heavy lock not acquired - abort"; DONE_CLEAN=1; exit 4; }
   HL_TAKEN=1
@@ -320,7 +320,7 @@ run_one() {   # $1 index, $2 arm
     [ $PASSES -ge "$WANT" ] && { say "SUCCESS: $PASSES consecutive passes"; STOP=1; }
     return 0
   fi
-  # stop rules: two TIMEOUTs in a row = broken (research/01 timeout rule); two harness failures in a row
+  # stop rules: two TIMEOUTs in a row = broken (research/process/README.md timeout rule); two harness failures in a row
   if [ "$RES" = TIMEOUT ]; then TO_STREAK=$((TO_STREAK + 1)); else TO_STREAK=0; fi
   if [ "$RES" != DONE ] && [ "$GCR" != GC_CRASH ]; then BAD_STREAK=$((BAD_STREAK + 1)); else BAD_STREAK=0; fi
   if [ $TO_STREAK -ge 2 ] || [ $BAD_STREAK -ge 2 ]; then say "two consecutive failed runs (timeouts $TO_STREAK, harness failures $BAD_STREAK): stopping, investigate (stall_*.png / windows_*.txt in the run folder first)"; STOP=1; fi

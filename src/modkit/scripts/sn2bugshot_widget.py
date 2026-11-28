@@ -1,5 +1,5 @@
 """Runs INSIDE the Unreal editor. Creates the SN2BugShot mod scaffold (ModActor + PAL, chunk 3) and builds the bug-report popup
-widget blueprint WBP_BugReport with the SN2GraphTools plugin (unreal.SN2GraphLibrary widget functions, see research/08).
+widget blueprint WBP_BugReport with the SN2GraphTools plugin (unreal.SN2GraphLibrary widget functions, see research/code/modkit_setup.md).
 
 Widget tree (names are used by src/mods/SN2BugShot/Scripts/bugshot.lua):
   Root (CanvasPanel)

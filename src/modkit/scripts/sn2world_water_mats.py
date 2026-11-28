@@ -1,7 +1,7 @@
 """Runs INSIDE the Unreal editor. Bakes a water-volume material (MaterialInstanceConstant of /Game/Materials/Water/MI_OceanVolume) into every
 water region of L_SN2World: the standalone BP_UWEOceanBiomeRegionActor_C_1 (L_Main values) and the SN1Biome_<biome> boxes (converted SN1 values
 from <Workspace>/sn1_biomes/<biome>.json "water_light_t3d"). Why: native AUWEWaterBiomeRegionActor::RecreateMaterials builds that MID only in the
-editor construction script and the modkit C++ is a stub, so without this every region shipped a generic MID with 2 scalars (research/10 §6
+editor construction script and the modkit C++ is a stub, so without this every region shipped a generic MID with 2 scalars (research/features/biome_look.md §6
 "Brown / dry-land water").
 
   * assets : /Game/Mods/SN2EmptyWorld/WaterVolume/MI_WV_Ocean and MI_WV_SS_<NNN> (one per box; <NNN> = box index). Re-run replaces their values.

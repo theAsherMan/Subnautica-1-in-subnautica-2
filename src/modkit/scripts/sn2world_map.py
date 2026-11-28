@@ -2,7 +2,7 @@
 (lifepod set, sky, water zone, managers, PlayerStarts) copied with the editor's copy/paste (Method 1, keeps instance-edited properties).
 L_Main is opened read-only and never saved.
 
-Findings baked into this script (2026-11-18, see research/09 "Replacement map L_SN2World"):
+Findings baked into this script (2026-11-18, see research/sn2/l_sn2world_map.md "Replacement map L_SN2World"):
  * BP_Ocean_C is copied like every other actor (instance values kept: CollisionExtents 816,000 x 816,000 x 5,000,000). Saving it fails with
    "Illegal reference to private object ... Default__BP_Ocean_C:OceanCollisionBoxComponent_1 ... CollisionBoxes" because the WaterBodyOceanComponent's
    CollisionBoxes array points at the CDO's subobject. Fix (step 2 of the 2026-11-18 work): after the paste, clear CollisionBoxes and CollisionHullSets via
@@ -12,7 +12,7 @@ Findings baked into this script (2026-11-18, see research/09 "Replacement map L_
  * Every root actor farther than FAR from the origin is SHIFTED so the lifepod lands at the origin (kept from the earlier design).
  * BP_LifePod_Lighting_Surface_C and BP_LifepodWallLocker_C have no attach parent in the editor world but are attached to the lifepod at runtime in L_Main
    (values relative to the pod) -> attached here with KEEP_RELATIVE.
- * 2026-11-19 water fix (research/09 "Root cause of the zero water volume"): the modkit's ocean C++ is a stub, so BP_Ocean_C's construction script bakes the
+ * 2026-11-19 water fix (research/sn2/l_sn2world_water.md "Root cause of the zero water volume"): the modkit's ocean C++ is a stub, so BP_Ocean_C's construction script bakes the
    water volume (its ChildActorComponent region) to scale 0 in the COOK. The map therefore also holds (a) a STANDALONE BP_UWEOceanBiomeRegionActor_C
    (step 4e: spawned, because EDIT COPY/PASTE skips child actors; transform = our ocean actor + L_Main's offset (0,0,-5e6), scale (1e6,1e6,1e5);
    every property that differs from the class default is copied from L_Main's child actor) and (b) the origin BP_BoxVolume_C air volume
@@ -344,7 +344,7 @@ if "BP_Ocean_C" not in RUNTIME_SPAWNED:
 
 # ---------- 4e. standalone water/biome region (does NOT depend on BP_Ocean_C's construction script) ----------
 # Why: the modkit's AUWEWaterBodyOcean is a logic-free stub, so BodySize is 0 when the cooker re-runs BP_Ocean_C's construction script and the ocean's
-# own ChildActorComponent (the region) bakes to scale 0 in the COOKED map (research/09 "Root cause of the zero water volume"). A placed actor's own
+# own ChildActorComponent (the region) bakes to scale 0 in the COOKED map (research/sn2/l_sn2world_water.md "Root cause of the zero water volume"). A placed actor's own
 # root transform is saved data, so a standalone copy of L_Main's region (same properties via copy/paste) at the same world transform survives.
 # World transform = our ocean actor's world transform composed with the L_Main offset (ocean at identity rotation/scale: loc + offset, scale unchanged).
 def region_actors():

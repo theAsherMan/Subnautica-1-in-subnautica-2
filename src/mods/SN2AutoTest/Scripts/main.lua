@@ -114,7 +114,7 @@ local function waitPawn(myGen)
 end
 
 -- TEST-ONLY object census (plan.lobbyCensus = {sec,...} seconds after the lobby WORLD line; plan.worldCensus = sec after PAWN possessed). One sample at a
--- time, never per frame. Purpose: find what the ~11.4k lobby SphereComponents are (GC-watchdog diagnosis, research/01 "GC-watchdog analysis").
+-- time, never per frame. Purpose: find what the ~11.4k lobby SphereComponents are (GC-watchdog diagnosis, research/crashes/gc_watchdog_logs_2026-11-23.md, "GC-watchdog analysis").
 -- Lines: CENSUS <tag> n=.. SphereComponent=.. BodySetup=.. StaticMeshComponent=.. PrimitiveComponent=.. took=..s ; CENSUS <tag> OWNERS/OUTERS/OUTERCLS k=v | ... ;
 -- CENSUS <tag> SAMPLE i=.. comp=.. outer=.. owner=.. ownerClass=.. valid=..  ; CENSUS DONE lobby / CENSUS DONE world (the driver waits for these).
 local function histTop(h, n)
@@ -1505,7 +1505,7 @@ function verbs.terraincensus(args)
     for _, p in ipairs(prefixes) do S[p] = { found = 0, valid = 0, hidden = 0, vis = 0, hig = 0, reg = 0, nocomp = 0, recent = 0, rcallable = 0, lcallable = 0 } end
     local okA, errA = pcall(function()
         for _, a in ipairs(findAll("StaticMeshActor")) do
-            -- imported tiles are named StaticMeshActor_N; only the MESH asset is SM_origin_tile_* (research/03), so match the mesh name too
+            -- imported tiles are named StaticMeshActor_N; only the MESH asset is SM_origin_tile_* (research/terrain/README.md), so match the mesh name too
             local nm = nameOf(a)
             local mnm = ""
             pcall(function()

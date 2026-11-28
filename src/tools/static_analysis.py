@@ -1,5 +1,5 @@
 """Static analysis conversations: the investigator talks with the static-analyst agent (Opus, xhigh, read-only)
-through a headless Claude CLI. Call through static_analysis.sh (it loads local.config). Details: research/01_runbook.md
+through a headless Claude CLI. Call through static_analysis.sh (it loads local.config). Details: research/process/README.md
 "Static analysis".
 
   new    --game sn1|sn2|both [--slug S]   create a conversation folder, print its path (quick)

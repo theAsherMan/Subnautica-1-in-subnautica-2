@@ -5,7 +5,7 @@ map /Game/Mods/SN2EmptyWorld/L_SN2World as cooked static meshes with collision.
   * assets  : /Game/Mods/SN2EmptyWorld/SN1Terrain/SM_spot1_tile_<i>_<k>   (vertices recentred on the tile bounds centre; Nanite on; complex-as-simple collision)
   * actors  : one StaticMeshActor per tile in L_SN2World, tag "SN1Terrain", outliner folder "SN1Terrain", located at the tile bounds centre
   * normals : recomputed (angle + area weighted, smooth); UVs: planar world-space (X,Y)/100 cm
-  * material: one SN2 material for every tile (MATERIAL below; research/03 section 3)
+  * material: one SN2 material for every tile (MATERIAL below; research/terrain/legacy_lua.md §3)
   * the OBJ winding is used AS IS (VERIFIED seabed normals +Z under UE's convention, see the self-check; do not flip)
 Sets: the set name (spot1 | origin) is read from <Workspace>/sn1_import_set.txt (first line; default spot1). Input dir sn1_extract/<set>, assets
 SM_<set>_tile_*, actors tagged "SN1Terrain" (common) + "SN1Terrain_<set>". The origin set also logs pod / Tadpole clearance traces.
@@ -192,7 +192,7 @@ for (ti, tk, path) in files:
     nt = unreal.GeometryScript_MeshQueries.get_num_triangle_i_ds(dm)
     if nt != len(tris):
         tri_lost += len(tris) - nt
-        log(f"  WARNING {name}: dynamic mesh kept {nt} of {len(tris)} OBJ triangles ({len(tris) - nt} lost = holes; non-manifold edge or degenerate triangle in the OBJ, see research/10)")
+        log(f"  WARNING {name}: dynamic mesh kept {nt} of {len(tris)} OBJ triangles ({len(tris) - nt} lost = holes; non-manifold edge or degenerate triangle in the OBJ, see research/sn1/README.md)")
     nopt = unreal.GeometryScriptCalculateNormalsOptions()
     setp(nopt, "area_weighted", True)
     setp(nopt, "angle_weighted", True)
@@ -231,7 +231,7 @@ for (ti, tk, path) in files:
     if not mesh:
         die(f"{asset_path} not created ({out})")
     mesh.set_material(0, mat)
-    log("  ground user data: " + U.add_ground_udata(mesh))   # Habitat Builder ground surface (research/04)
+    log("  ground user data: " + U.add_ground_udata(mesh))   # Habitat Builder ground surface (research/features/README.md)
     bs = mesh.get_editor_property("body_setup")
     if bs:
         setp(bs, "collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)

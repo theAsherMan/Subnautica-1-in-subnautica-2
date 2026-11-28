@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bug-report collector (see research/01 "Bug reports from the user"). Run through bugshot_watch.sh under the Monitor tool.
+"""Bug-report collector (see research/process/bug_reports.md "Bug reports from the user"). Run through bugshot_watch.sh under the Monitor tool.
 
 Polls <ue4ss>/Mods/SN2BugShot/reports/*.json (written by the in-game F1 key). For each report: captures the game window (PrintWindow, normal
 or hidden desktop; falls back to a screen grab if the capture is black), copies json + png + log excerpts into <Workspace>/bugshots/<id>/,

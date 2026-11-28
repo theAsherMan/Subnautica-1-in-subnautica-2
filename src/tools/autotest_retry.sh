@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run a plan up to 3 times; retry after a CRASH only. FAIL_MENU is retried once ONLY with --retry-menu (opt-in, off by default). Any other FAIL is not retried (no waits or delays are added, see research/01 "Automated test runs").
+# Run a plan up to 3 times; retry after a CRASH only. FAIL_MENU is retried once ONLY with --retry-menu (opt-in, off by default). Any other FAIL is not retried (no waits or delays are added, see research/process/autotest.md "Automated test runs").
 # autotest.sh reclassifies a run as CRASH when a new dump appeared or the game log has a fatal marker, so a crash during a map load is retried as a CRASH.
 # Usage: bash src/tools/autotest_retry.sh <plan-name> --timeout <s> [--check <s>] [--retry-menu] [--visible] [--input os|engine] [--timeout-reason ..] [--after-fix ..]  (options are forwarded to autotest.sh; --timeout is per attempt)
 # (old usage text follows) bash src/tools/autotest_retry.sh <plan-name>      Prints "RETRY_SUMMARY plan attempts=<n> crashes=<c> final=<result>" at the end.

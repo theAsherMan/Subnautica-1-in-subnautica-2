@@ -1,5 +1,5 @@
 """Runs INSIDE the Unreal editor. Idempotent: adds (or updates) one unbound PostProcessVolume in L_SN2World that fixes the auto-exposure bias at source.
-Why: DS_Main_Day rewrites the sky post process AutoExposureBias to 0.5 every frame; SN1's look is about 2.3 EV brighter (research/10 section 6c).
+Why: DS_Main_Day rewrites the sky post process AutoExposureBias to 0.5 every frame; SN1's look is about 2.3 EV brighter (research/features/biome_look.md §6c).
 A PPV with Priority 10 and only bOverride_AutoExposureBias set wins over the sky PP for that one field.
 Edit EXPOSURE_BIAS and rebake. Loads the CURRENT saved map, touches only the actor labelled SN2_ExposurePPV.
 Run: python -I src/modkit/tools/ue_run.py src/modkit/scripts/sn2world_exposure.py   Lines start [Exposure].

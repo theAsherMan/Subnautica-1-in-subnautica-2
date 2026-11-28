@@ -3,7 +3,7 @@
 #   bash src/tools/sn1_run.sh --timeout <s> [--check <s>] [--script <file>] [--no-launch]
 # Refusals: 8 no --timeout, 3 SN1 already running, 4 lock held by another session, 6 Steam not ready, 2 bad args.
 # Needs the heavy lock (kind "sn1"), Steam running, SN1 not running. Run folder: <Workspace>/sn1_runs/<timestamp>/ (result.txt = verdict).
-# Details: research/11_sn1_modding.md
+# Details: research/sn1/README.md
 . "$(dirname "$0")/sn2_env.sh"
 . "$(dirname "$0")/autotest_lib.sh"
 TOOLS="$SN2_REPO/src/tools"

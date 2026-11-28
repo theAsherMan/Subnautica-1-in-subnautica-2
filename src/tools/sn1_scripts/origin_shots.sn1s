@@ -1,4 +1,4 @@
-# Reference shots at the origin-cube viewpoint (Unity 40,-18,-10; 9.1 m above the seabed, about 41 m SSW of the pod). 8 yaws + up + down. See research/11.
+# Reference shots at the origin-cube viewpoint (Unity 40,-18,-10; 9.1 m above the seabed, about 41 m SSW of the pod). 8 yaws + up + down. See research/sn1/README.md.
 wait menu 300
 cmd newgame creative
 wait ingame 600

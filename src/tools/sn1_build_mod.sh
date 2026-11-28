@@ -8,7 +8,7 @@ MOD="${1:?usage: sn1_build_mod.sh <Mod>}"
 PROJ="$SN2_REPO/src/sn1mods/$MOD/$MOD.csproj"
 [ -f "$PROJ" ] || { echo "REFUSED: $PROJ not found"; exit 2; }
 if tasklist 2>/dev/null | grep -qi "^Subnautica.exe"; then echo "REFUSED: Subnautica.exe is running"; exit 3; fi
-[ -f "$SN1_GAME_DIR/BepInEx/core/BepInEx.dll" ] || { echo "REFUSED: BepInEx not installed in the SN1 folder (see research/11_sn1_modding.md)"; exit 4; }
+[ -f "$SN1_GAME_DIR/BepInEx/core/BepInEx.dll" ] || { echo "REFUSED: BepInEx not installed in the SN1 folder (see research/sn1/README.md)"; exit 4; }
 dotnet build "$PROJ" -c Release -p:SN1Dir="$SN1_GAME_DIR" -nologo -v:m || exit 5
 DLL="$SN2_REPO/src/sn1mods/$MOD/bin/Release/net472/$MOD.dll"
 [ -f "$DLL" ] || { echo "build produced no $DLL"; exit 6; }

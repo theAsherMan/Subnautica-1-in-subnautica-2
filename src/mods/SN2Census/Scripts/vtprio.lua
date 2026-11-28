@@ -1,4 +1,4 @@
--- SN2Census test-only helper (2026-11-26): set r.VT.IOPriority_HighPagePri early and log the read-back (GC-watchdog fix test 1, research/01 "H8 series").
+-- SN2Census test-only helper (2026-11-26): set r.VT.IOPriority_HighPagePri early and log the read-back (GC-watchdog fix test 1, research/crashes/gc_watchdog_renderpipe_2026-11-25.md, "H8 series").
 -- Active ONLY while <mod dir>/vtprio.flag exists (written by src/tools/gc_ab_test.sh --vt-prio N, removed afterwards). Line 1 = value, line 2 = output dir
 -- (forward slashes). Without the flag nothing is hooked, so the product behaviour is unchanged.
 -- Steps: (1) from mod start, every 0.5 s (game thread) until the cvar reads back as the wanted value: ExecuteConsoleCommand("r.VT.IOPriority_HighPagePri N")

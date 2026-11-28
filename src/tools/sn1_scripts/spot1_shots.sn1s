@@ -1,4 +1,4 @@
-# Reference shots at the open-water test point (dunes). 10 views + cam info + terrain collider OBJ. See research/11.
+# Reference shots at the open-water test point (dunes). 10 views + cam info + terrain collider OBJ. See research/sn1/README.md.
 wait menu 300
 cmd newgame creative
 wait ingame 600

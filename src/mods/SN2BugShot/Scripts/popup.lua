@@ -1,6 +1,6 @@
 -- SN2BugShot popup flow. Returns an api table: open(source), submit(), cancel(), setText(s), state(), isOpen().
 -- Used by main.lua (F1, Ctrl+Enter, Esc) and by the SN2AutoTest verbs bugreport_*.
--- Flow (research/07 "SN2BugShot popup"): capture report + HighResShot request -> <id>.json.pending -> ~0.4 s later create WBP_BugReport,
+-- Flow (research/process/bug_reports.md "SN2BugShot popup"): capture report + HighResShot request -> <id>.json.pending -> ~0.4 s later create WBP_BugReport,
 -- AddToViewport, pause, UI-only input focused on DescBox, cursor on -> poll widget.Result (0 open / 1 submit / 2 cancel) every 100 ms ->
 -- read DescBox text, remove widget, unpause, game-only input, cursor off -> write <id>.json (description + descriptionState).
 local src = (debug.getinfo(1, "S").source or ""):gsub("^@", "")

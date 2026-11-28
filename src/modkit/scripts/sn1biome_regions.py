@@ -1,5 +1,5 @@
 """Runs INSIDE the Unreal editor. Places one SN1 biome's water look in /Game/Mods/SN2EmptyWorld/L_SN2World as a set of box-shaped
-BP_UWEWaterBiomeRegionActor_C actors, each carrying the converted WaterLightSettings (research/04 "Water colour / fog per area", research/10 §6).
+BP_UWEWaterBiomeRegionActor_C actors, each carrying the converted WaterLightSettings (research/features/biome_look.md "Water colour / fog per area", research/features/biome_look.md §6).
 
   * input   : <Workspace>/sn1_biomes/<biome>.json, written by src/tools/sn1_biome_transfer.py (boxes in UE cm + water_light_t3d). Refuses if
               water_light_t3d is null (run the converter with --settings <SN1 waterbiomes dump> first).
@@ -227,7 +227,7 @@ def check(tag):
         if not good:
             bad.append(lab)
     # After a reload the editor shows BRVT_Brush again (construction on load; the saved file has no volume-type delta = class default Shape,
-    # 2026-11-26), so only the in-memory check requires "no BRVT_Brush". Which value the cooked game uses: see research/04.
+    # 2026-11-26), so only the in-memory check requires "no BRVT_Brush". Which value the cooked game uses: see research/features/README.md.
     log(f"[{tag}] regions showing BRVT_Brush: {back.count('BiomeRegionVolumeType=BRVT_Brush')}")
     okf = nblk == len(BOXES) and not bad
     k = back.find("BoxExtent=")

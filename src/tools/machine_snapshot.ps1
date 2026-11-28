@@ -1,4 +1,4 @@
-# Machine snapshot for autotest runs (research/01). Run via:
+# Machine snapshot for autotest runs (research/process/README.md). Run via:
 #   powershell -NoProfile -Command "Get-Content -Raw '<path>' | Invoke-Expression"
 # Prints: time, free/total physical RAM, top 10 processes by working set, and the watched processes with CPU time.
 $os = Get-CimInstance Win32_OperatingSystem

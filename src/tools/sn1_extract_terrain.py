@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""SN1 terrain extractor: .optoctrees -> UE-ready OBJ tiles (UE axes, cm, absolute). See research/10 sections 4 and 7.
+"""SN1 terrain extractor: .optoctrees -> UE-ready OBJ tiles (UE axes, cm, absolute). See research/sn1/README.md sections 4 and 7.
 
   sn1_extract_terrain.py --center X Y Z [--size 500] [--tile 125] [--out DIR]
 
 Unity metres in; OBJ out in UE cm: UE.X = 100*unity.z, UE.Y = 100*unity.x, UE.Z = 100*unity.y.
-Mesher: surface nets on SN1's own density semantics (not a port of Voxeland's face mesher, see research/10 section 4).
+Mesher: surface nets on SN1's own density semantics (not a port of Voxeland's face mesher, see research/sn1/world_files.md §4).
 Triangle winding: numeric cross product (b-a)x(c-a) points out of the solid (into the water), in Unity space and, because
 the axis map is a cyclic permutation, also in UE space. In UE's left-handed space that is clockwise-from-the-front = front face.
 Read-only on the SN1 install. Peak RAM about 1 GB for a 500 m cube. Single process.

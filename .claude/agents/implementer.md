@@ -10,7 +10,7 @@ You are the implementer for the Subnautica 1 → Subnautica 2 project. A plannin
 
 ## Before you start
 1. Read `CLAUDE.md` and `.claude/CLAUDE.md` (already in your context) and follow them exactly.
-2. Read `research/00_overview.md`, then `research/01_runbook.md`, then the `research/` files the plan touches. Do not rediscover what they record; re-verify only when something contradicts them.
+2. Read `research/README.md`, `research/status.md`, then `research/process/core_rules.md`, then the README.md of the folder the task touches and the files it lists, then the `research/` files the plan touches. Do not rediscover what they record; re-verify only when something contradicts them.
 3. Read `local.config` for the real machine paths.
 4. Before any heavy job (the list is in `CLAUDE.md` "Parallel sessions: one heavy job at a time"), check `bash src/tools/heavy_lock.sh status` and follow the lock rules in that section. Only one runs at a time.
 
@@ -65,7 +65,7 @@ You are the implementer for the Subnautica 1 → Subnautica 2 project. A plannin
 - Use the Write and Edit tools. Do not edit with inline shell or Python that contains backslash escapes: the command tool expands them before the interpreter sees them. This broke a Lua file on 2026-11-19 with a raw CR, LF and TAB inside a string.
 - If a patch script is unavoidable, build backslashes with `chr(92)` and use binary file I/O.
 - Keep each file's existing line endings. Check a file's endings before editing it (do not rely on a remembered list; git `core.autocrlf` is on, so working copies may differ from the repo). After editing, confirm the file has no mixed endings.
-- After any scripted edit, check the file for lone CR bytes and C1 control characters (U+0080 to U+009F). On 2026-11-22, `\r` and `\202` inside Python string literals corrupted research/01: `<Workspace>\reports` came out with a raw CR, and `save_backups\20261122_...` came out with a U+0082 character.
+- After any scripted edit, check the file for lone CR bytes and C1 control characters (U+0080 to U+009F). On 2026-11-22, `\r` and `\202` inside Python string literals corrupted research/process/README.md: `<Workspace>\reports` came out with a raw CR, and `save_backups\20261122_...` came out with a U+0082 character.
 - `install_mod.sh` refuses Lua containing a CR or control byte (`src/tools/check_lua_ctl.py`).
 - Tracked files use placeholders only: `<GameDir>`, `<Workspace>`, `<ModkitDir>`, `<RepoDir>`. `%LOCALAPPDATA%` is fine.
 
@@ -79,7 +79,7 @@ Your context auto-compacts at 150k tokens (`autoCompactWindow` in the frontmatte
 ## Research log (required, same turn as the finding)
 - Update the matching `research/` file as you go: new facts, class and property names, paths, signatures, gotchas, and failures or dead ends with the exact error text.
 - When your work solves a problem or replaces an approach, condense its notes as the "Condense once solved" rule in `CLAUDE.md` describes.
-- When a result changes them, update "State of play" and "Next steps" in `research/00_overview.md`.
+- When a result changes them, update "State of play" and "Next steps" in `research/status.md`.
 - Every claim gets a status with the real date:
   - **VERIFIED (date)**: seen in game, in a screenshot, or read directly from a file. A cooked-file read verifies "the file contains X", not the in-game effect.
   - **LOGGED (date)**: a log says it ran, but the effect is unconfirmed.

@@ -16,7 +16,7 @@ Columns (tab separated, header line starts with '#'):
   result           OK (`Took .. seconds to LoadMap(<world>)` seen), GC_CRASH (`Spent too much time waiting for FinishDestroy` or
                    `AbortInsideMemberFunction`), NO_END (log ends before either)
   gc_queue         `objects in queue: N` of the LogGarbage watchdog line (GC_CRASH rows)
-Prints a summary (purge distribution, crash count) at the end. Test-only diagnosis tool (research/01 "GC-watchdog analysis")."""
+Prints a summary (purge distribution, crash count) at the end. Test-only diagnosis tool (research/crashes/gc_watchdog_logs_2026-11-23.md, "GC-watchdog analysis")."""
 import glob
 import os
 import re

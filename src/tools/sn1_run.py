@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Subnautica 1 run driver (called by sn1_run.sh after lock + Steam checks). See research/11_sn1_modding.md.
+"""Subnautica 1 run driver (called by sn1_run.sh after lock + Steam checks). See research/sn1/README.md.
 
   sn1_run.py --run-dir DIR --timeout S [--check S] [--script FILE] [--no-launch]
 

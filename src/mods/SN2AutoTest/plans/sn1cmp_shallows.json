@@ -44,5 +44,5 @@
   }
  ],
  "settleSeconds": 15,
- "_note": "SN1 vs SN2 comparison shots for Safe Shallows water (research/10 section 6); waypoints from samples/safeShallows/<name>/SN2/plan.json (superseded by the generated plan 'samples', see samples/README.md)"
+ "_note": "SN1 vs SN2 comparison shots for Safe Shallows water (research/features/biome_look.md §6); waypoints from samples/safeShallows/<name>/SN2/plan.json (superseded by the generated plan 'samples', see samples/README.md)"
 }

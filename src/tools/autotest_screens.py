@@ -4,7 +4,7 @@
 A screen is identified by the normalised cross-correlation (NCC) of a high-pass-filtered grayscale crop of a fixed UI box against the screen's
 reference (the mean of that crop over many known-good screenshots). High-pass + NCC removes the animated cave/ocean background and brightness
 (fades), so only the fixed UI shapes (buttons, panels, text lines) count. distance = 1 - NCC: ~0.00-0.15 for the right screen, >= 0.75 for any other
-menu screen, >= 0.87 for in-game views (VERIFIED offline 2026-11-19 on 359 shots from 18 runs, see research/01_runbook.md).
+menu screen, >= 0.87 for in-game views (VERIFIED offline 2026-11-19 on 359 shots from 18 runs, see research/process/README.md).
 
 Files (in src/mods/SN2AutoTest/plans/):
   screens.json        fingerprints written by `build` (numbers only): box, reference, thresholds

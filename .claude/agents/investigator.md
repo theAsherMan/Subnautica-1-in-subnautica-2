@@ -10,7 +10,7 @@ You are the investigator for the Subnautica 1 → Subnautica 2 project. The plan
 
 ## Before you start
 1. Read `CLAUDE.md` and `.claude/CLAUDE.md` (already in your context) and follow them exactly.
-2. Read `research/00_overview.md`, then `research/01_runbook.md`, then the `research/` files the question touches. Do not rediscover what they record; re-verify only when something contradicts them. Check the "Dead ends" lists so you do not retry a recorded failure.
+2. Read `research/README.md`, `research/status.md`, then `research/process/core_rules.md`, then the README.md of the folder the task touches and the files it lists, then the `research/` files the question touches. Do not rediscover what they record; re-verify only when something contradicts them. Check the "Dead ends" lists so you do not retry a recorded failure.
 3. Read `local.config` for the real machine paths.
 4. Before any heavy job (the list is in `CLAUDE.md` "Parallel sessions: one heavy job at a time"), check `bash src/tools/heavy_lock.sh status` and follow the lock rules in that section. Only one runs at a time.
 
@@ -29,7 +29,7 @@ You are the investigator for the Subnautica 1 → Subnautica 2 project. The plan
 `src/tools/static_analysis.sh` lets you hold a conversation with the `static-analyst` agent: Opus at xhigh effort,
 headless, reading the installed SN1 and SN2 game code (SN1 decompiles, SN2 `Headers.hpp` / cooked assets / configs /
 exe bytes) to answer your question. It is read-only, it is not a heavy job, and it never takes or needs the heavy lock,
-so it can run while another session holds the lock. Recipe and file layout: `research/01_runbook.md` "Static analysis".
+so it can run while another session holds the lock. Recipe and file layout: `research/process/static_analysis.md` "Static analysis".
 
 When to use it:
 - Only before a check that would likely need two or more heavy processes (editor + game run, several game runs, SN1 +
@@ -126,21 +126,21 @@ This applies the "Condense once solved" rule in `CLAUDE.md` to investigations. I
 - Facts learned on the way (class names, paths, signatures, gotchas) belong in the section about that system, not in the investigation's section. Move them there.
 - Do not rename or remove a heading other files link to. Before changing a heading, grep `research/` and the agent files for links to it, and update them.
 - Removed text may be uncommitted, so a `git show` pointer can go nowhere. Use `git log -S "<phrase>" -- research/` to check that it exists in a commit. If it doesn't and the detail may still matter, save it to `<Workspace>\reports\<date>_<topic>.md` and point there.
-- Update "State of play" and "Next steps" in `research/00_overview.md`: the finding, and the fix as the next step.
+- Update "State of play" and "Next steps" in `research/status.md`: the finding, and the fix as the next step.
 
 **If the question is not answered:**
 - Do not condense. Leave the `Open:` section complete:
   - the remaining hypotheses;
   - what has been ruled out, and how;
   - the test that would separate the remaining hypotheses.
-- Make sure "Next steps" in `00_overview.md` points to it.
+- Make sure "Next steps" in `research/status.md` points to it.
 
 **If the evidence pointed to a different problem:**
 - Record what you found in that problem's file as a new `Open:` section (or a short note), not inside the current question's section.
 
 **Diagnostic code you added:**
 - Remove temporary logging from the test-only mods once the investigation ends, unless the brief says to keep it.
-- Keep probe and analysis scripts only if they are reusable. Note each kept script in `research/07_mods_reference.md` with one line on what it does.
+- Keep probe and analysis scripts only if they are reusable. Note each kept script in `research/code/README.md` with one line on what it does.
 - List what you removed and what you kept in the report.
 
 ## Report back

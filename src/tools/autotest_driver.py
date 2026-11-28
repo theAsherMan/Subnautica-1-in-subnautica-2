@@ -21,7 +21,7 @@ Every input action first brings Subnautica2-Win64-Shipping.exe to the foreground
 INPUT MODES (--input os|engine anywhere on the command line, or env SN2_INPUT; default engine):
   os      (opt-in) simulated OS keyboard/mouse + full-screen grabs; the game window must stay in front.
   engine  (default) the game is driven from inside by the UE4SS mod SN2AutoTest (command file run/cmd.txt, verbs state/teleport/look/click/... see
-          research/01_runbook.md 'Engine input mode'); screenshots are PrintWindow captures of the game window (src/tools/winshot.py), so the window may stay
+          research/process/autotest_input.md "Engine input mode"); screenshots are PrintWindow captures of the game window (src/tools/winshot.py), so the window may stay
           unfocused / covered by other windows. The driver never moves the real mouse, presses keys, focuses the game or grabs the screen: press, combo, click,
           mouse_move, focus and the full-screen ImageGrab helpers RAISE in engine mode.
 """
@@ -230,7 +230,7 @@ def list_game_windows():
     return lines or ["game process running (pids %s) but no visible top-level window" % sorted(pids)]
 
 def save_stall(out, reason):
-    """research/01 rule 2026-11-19: before any failure report / forced kill save (a) a full-desktop screenshot WITHOUT focusing the game and
+    """research/process/README.md rule 2026-11-19: before any failure report / forced kill save (a) a full-desktop screenshot WITHOUT focusing the game and
     (b) the list of the game's visible top-level windows. Never raises."""
     got = []
     try:
@@ -874,7 +874,7 @@ def run_plan(plan_path):
             except (FocusError, RuntimeError):
                 if game_pids(): raise
     def do_steps(steps):
-        """screen-identity navigation (research/01 'Screen-identity menu navigation'): per step wait until the expected screen is stably identified,
+        """screen-identity navigation (research/process/autotest_input.md "Screen-identity menu navigation"): per step wait until the expected screen is stably identified,
         act, poll (<= 10 s) until the screen is something else, re-act only if it is still the same screen (max 3), skip ahead when a later step's
         screen is showing, FAIL_MENU when stuck."""
         if ENG:

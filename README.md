@@ -1,7 +1,7 @@
 # Subnautica 1 → Subnautica 2 world mod — setup guide
 
 How to set up a Windows PC to work on this project from scratch: which accounts to create, what to install, and the steps in order.
-Technical research notes are in [`research/`](research/00_overview.md). Instructions for Claude are in [`CLAUDE.md`](CLAUDE.md).
+Technical research notes are in [`research/`](research/status.md). Instructions for Claude are in [`CLAUDE.md`](CLAUDE.md).
 
 There are two toolchains:
 
@@ -103,7 +103,7 @@ If the system drive is small, put `<ModkitDir>` on another drive; section 7 keep
 | 5 | Download the custom engine from the **Releases** page of https://github.com/Buckminsterfullerene02/UnrealEngine. Use the release that matches the modkit's README ("custom engine V4" at the time of writing). It comes as a **split zip** (`SN2-Engine-V4.zip.001` … `.004`) and **every part** is needed. Set the browser to save to `<ModkitDir>\downloads\`. |
 | 6 | Unpack it. Windows can't open split zips; either use 7-Zip on `.001`, or use this repo's helper, which needs no extra software and checks every file:<br>`python -I src\modkit\tools\splitzip.py extract <ModkitDir>\downloads\SN2-Engine-V4.zip.001 <ModkitDir>\UE_5.6_SN2`<br>(about 13 minutes on a hard drive). |
 | 7 | Download FMOD (section 3, item 8), then from the project folder in PowerShell:<br>`$env:TEMP='<ModkitDir>\Temp'; powershell -ExecutionPolicy Bypass -File setup-fmod.ps1 -FMODPluginZip "<ModkitDir>\downloads\fmodstudio20315ue5.6win64.zip"`<br>Don't copy the plugin folder from the zip into the project yourself. |
-| 8 | Link the project to the engine. The modkit README says to right-click `Subnautica2.uproject` → **Switch Unreal Engine version**, but this engine build has no version selector, so register it manually instead: add a string value to `HKCU\Software\Epic Games\Unreal Engine\Builds` named `{<new GUID>}` with data `<ModkitDir>/UE_5.6_SN2`, and put the same `{GUID}` into `"EngineAssociation"` in `Subnautica2.uproject` (any new GUID works; details in `research/08_modkit_setup.md`). |
+| 8 | Link the project to the engine. The modkit README says to right-click `Subnautica2.uproject` → **Switch Unreal Engine version**, but this engine build has no version selector, so register it manually instead: add a string value to `HKCU\Software\Epic Games\Unreal Engine\Builds` named `{<new GUID>}` with data `<ModkitDir>/UE_5.6_SN2`, and put the same `{GUID}` into `"EngineAssociation"` in `Subnautica2.uproject` (any new GUID works; details in `research/code/modkit_setup.md`). |
 | 9 | Optional: the cache redirects in section 7. |
 | 10 | Copy this repo's editor add-on into the modkit: `src\modkit\plugins\SN2GraphTools` → `<ModkitDir>\Subnautica2-Project\Plugins\SN2GraphTools`, then build the editor once (editor closed):<br>`<ModkitDir>\UE_5.6_SN2\Engine\Build\BatchFiles\Build.bat Subnautica2Editor Win64 Development -Project=<ModkitDir>\Subnautica2-Project\Subnautica2.uproject -WaitMutex` (about 10 minutes the first time). It lets the scripts in `src/modkit/scripts` build Blueprint logic. |
 | 11 | Start the editor with **`src\modkit\Launch-Editor.cmd`**. The first launch compiles shaders and can take 20–40 minutes on a hard drive. If asked to rebuild modules, click **Yes**. If asked to **convert** the project, cancel: the engine link is wrong. |

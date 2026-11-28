@@ -220,7 +220,7 @@ def main():
     if not hproc:
         say("OpenProcess failed %d" % ctypes.get_last_error()); return 4
     mods = modules(hproc)
-    # ---- fence-bundler globals (build CL-131439 RVAs, research/01_runbook.md "Fence bundler state") ----
+    # ---- fence-bundler globals (build CL-131439 RVAs, research/crashes/gc_watchdog_renderpipe_2026-11-25.md, "Fence bundler state") ----
     # depth  = int32 RecursionDepth (inc in StartRenderCommandFenceBundler @0x32C7C40, dec in Stop @0x32CB6D0)
     # evset  = byte TOptional<FTaskEvent> IsSet flag (checked by Flush/BeginFence); evptr = the qword before it
     glob_base = None
